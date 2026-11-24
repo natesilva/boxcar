@@ -17,7 +17,7 @@ import SwiftUI
     }
 
     var body: some Scene {
-        MenuBarExtra("MyApp", systemImage: "shippingbox") {
+        MenuBarExtra("MyApp", systemImage: "rectangle.stack") {
             ShellMenu {
                 ContainerMenuContent(store: store)
             }
