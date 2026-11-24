@@ -48,6 +48,29 @@ struct ContainerGroupTests {
         #expect(stopped.allows(.start) && !stopped.allows(.stop))
     }
 
+    @Test func groupWorkingDirectoryComesFromAMember() {
+        let ref = ContainerGroupRef(source: source, name: "shop")
+        let member = ContainerInfo(
+            ref: ContainerRef(source: source, containerID: "app"),
+            name: "app",
+            image: "alpine",
+            state: .running,
+            status: "",
+            group: GroupMembership(groupName: "shop", memberName: "app", workingDirectory: "/Users/test/shop")
+        )
+        let group = ContainerGroup(ref: ref, containers: [container("db", .running, group: "shop"), member])
+
+        #expect(group.workingDirectory?.path == "/Users/test/shop")
+        #expect(ContainerGroup(ref: ref, containers: [container("db", .running, group: "shop")]).workingDirectory == nil)
+    }
+
+    @Test func publishedPortHasLocalAddressAndURL() {
+        let port = PublishedPort(hostPort: 5173)
+
+        #expect(port.address == "localhost:5173")
+        #expect(port.url?.absoluteString == "http://localhost:5173")
+    }
+
     @Test func groupActionUpdatesAllMembers() async throws {
         let runtime = InMemoryRuntime(
             id: "memory",

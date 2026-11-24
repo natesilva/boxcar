@@ -53,6 +53,14 @@ struct ContainerGroupMenu: View {
                 ContainerMenuItem(store: store, container: container, title: container.group?.memberName ?? container.name)
             }
             Divider()
+            if let workingDirectory = group.workingDirectory {
+                Button(workingDirectory.abbreviatedPath, systemImage: "folder") {
+                    NSWorkspace.shared.open(workingDirectory)
+                }
+                .labelStyle(.titleAndIcon)
+                .help(Text("Show in Finder", bundle: #bundle, comment: "Tooltip of the menu item that shows the directory of a Compose project."))
+                Divider()
+            }
             ForEach(ContainerAction.allCases, id: \.self) { action in
                 Button(action.groupTitle) {
                     Task { await store.perform(action, on: group) }
@@ -73,6 +81,53 @@ struct ContainerGroupMenu: View {
     }
 }
 
+/// Shows an open action and a copy action for each published port. A menu item has
+/// only one action, so a container with many ports gets a submenu for each port.
+struct PortMenuItems: View {
+    let ports: [PublishedPort]
+
+    private static let maxInlinePorts = 4
+
+    var body: some View {
+        if ports.count > Self.maxInlinePorts {
+            ForEach(ports) { port in
+                Menu {
+                    actions(for: port)
+                } label: {
+                    Label(port.address, systemImage: "network")
+                }
+                .labelStyle(.titleAndIcon)
+            }
+        } else {
+            ForEach(ports) { port in
+                actions(for: port)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func actions(for port: PublishedPort) -> some View {
+        Button(LocalizedStringResource("Open \(port.address)", bundle: #bundle, comment: "Menu item that opens a published port of a container in the browser. The value is the address, such as localhost:5173."), systemImage: "network") {
+            if let url = port.url {
+                NSWorkspace.shared.open(url)
+            }
+        }
+        .labelStyle(.titleAndIcon)
+        Button(LocalizedStringResource("Copy \(port.address)", bundle: #bundle, comment: "Menu item that copies the address of a published port of a container. The value is the address, such as localhost:5173."), systemImage: "doc.on.doc") {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(port.address, forType: .string)
+        }
+        .labelStyle(.titleAndIcon)
+    }
+}
+
+extension URL {
+    /// The path with `~` for the home directory, as Finder and Terminal show it.
+    var abbreviatedPath: String {
+        (path as NSString).abbreviatingWithTildeInPath
+    }
+}
+
 struct ContainerMenuItem: View {
     let store: ContainerStore
     let container: ContainerInfo
@@ -84,6 +139,10 @@ struct ContainerMenuItem: View {
         Menu {
             Text(container.image)
             Text(container.status)
+            if !container.ports.isEmpty {
+                Divider()
+                PortMenuItems(ports: container.ports)
+            }
             Divider()
             ForEach(ContainerAction.allCases, id: \.self) { action in
                 Button(action.title) {

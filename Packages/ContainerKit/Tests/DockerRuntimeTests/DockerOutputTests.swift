@@ -40,6 +40,32 @@ struct DockerOutputTests {
         #expect(containers[0].status == "Up 2 hours (healthy)")
     }
 
+    @Test func portsListPublishedTCPPortsOncePerPort() throws {
+        let ports = "0.0.0.0:5173->5173/tcp, [::]:5173->5173/tcp, 0.0.0.0:8000-8002->8000-8002/tcp, 0.0.0.0:53->53/udp, 5432/tcp"
+        let output = #"{"ID":"1","Image":"web","Names":"web","State":"running","Status":"Up","Ports":"\#(ports)"}"#
+
+        let container = try #require(try DockerOutput.containers(from: output).first)
+
+        #expect(container.publishedPorts.map(\.hostPort) == [5173, 8000, 8001, 8002])
+    }
+
+    @Test func containerWithoutPortsHasNoPublishedPorts() throws {
+        let output = #"{"ID":"1","Image":"web","Names":"web","State":"exited","Status":"Exited (0)","Ports":""}"#
+
+        let container = try #require(try DockerOutput.containers(from: output).first)
+
+        #expect(container.publishedPorts.isEmpty)
+    }
+
+    @Test func composeWorkingDirectoryIsPartOfGroupMembership() throws {
+        let labels = "com.docker.compose.project=litellm,com.docker.compose.project.working_dir=/Users/test/.config/litellm,com.docker.compose.service=db"
+        let output = #"{"ID":"1","Image":"postgres:16","Names":"litellm-db-1","State":"running","Status":"Up","Labels":"\#(labels)"}"#
+
+        let container = try #require(try DockerOutput.containers(from: output).first)
+
+        #expect(container.composeMembership?.workingDirectory == "/Users/test/.config/litellm")
+    }
+
     @Test func decodesInspectDiagnostics() throws {
         let output = """
             [

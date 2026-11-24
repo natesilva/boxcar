@@ -28,6 +28,7 @@ enum DockerOutput {
         let state: String
         let status: String
         let labels: String?
+        let ports: String?
 
         enum CodingKeys: String, CodingKey {
             case id = "ID"
@@ -36,6 +37,7 @@ enum DockerOutput {
             case state = "State"
             case status = "Status"
             case labels = "Labels"
+            case ports = "Ports"
         }
 
         /// `Labels` is one comma-separated string of `key=value` pairs. Some values,
@@ -54,7 +56,33 @@ enum DockerOutput {
             guard let project = label("com.docker.compose.project") else {
                 return nil
             }
-            return GroupMembership(groupName: project, memberName: label("com.docker.compose.service") ?? primaryName)
+            return GroupMembership(
+                groupName: project,
+                memberName: label("com.docker.compose.service") ?? primaryName,
+                workingDirectory: label("com.docker.compose.project.working_dir")
+            )
+        }
+
+        /// `Ports` is a comma-separated list of mappings, such as `0.0.0.0:5173->5173/tcp, [::]:5173->5173/tcp`.
+        /// Engines list a port once for each host address, and a range as `8000-8002->8000-8002/tcp`.
+        /// Ports that are exposed but not published have no `->`. The browser can open only TCP ports.
+        var publishedPorts: [PublishedPort] {
+            let hostPorts = (ports ?? "").split(separator: ",").flatMap { entry -> [Int] in
+                let mapping = entry.trimmingCharacters(in: .whitespaces)
+                guard mapping.hasSuffix("/tcp"),
+                      let arrow = mapping.range(of: "->"),
+                      let portText = mapping[..<arrow.lowerBound].split(separator: ":").last
+                else {
+                    return []
+                }
+                let bounds = portText.split(separator: "-").compactMap { Int($0) }
+                switch bounds.count {
+                case 1: return bounds
+                case 2 where bounds[0] <= bounds[1]: return Array(bounds[0]...bounds[1])
+                default: return []
+                }
+            }
+            return Set(hostPorts).sorted().map { PublishedPort(hostPort: $0) }
         }
 
         /// `Names` is a comma-separated list. The first name is the container's own name.
@@ -134,7 +162,8 @@ extension DockerOutput.Container {
             state: ContainerState(rawValue: state) ?? .unknown,
             status: status,
             group: composeMembership,
-            diagnostics: diagnostics
+            diagnostics: diagnostics,
+            ports: publishedPorts
         )
     }
 }

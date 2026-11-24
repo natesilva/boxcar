@@ -15,6 +15,9 @@
     "Clear" : {
       "comment" : "Toolbar button that removes all log lines from the window."
     },
+    "Copy %@" : {
+      "comment" : "Menu item that copies the address of a published port of a container. The value is the address, such as localhost:5173."
+    },
     "Copy All" : {
       "comment" : "Toolbar button that copies all log lines."
     },
@@ -42,6 +45,9 @@
     "No containers" : {
       "comment" : "Shown under a Docker context that has no containers."
     },
+    "Open %@" : {
+      "comment" : "Menu item that opens a published port of a container in the browser. The value is the address, such as localhost:5173."
+    },
     "Reconnect" : {
       "comment" : "Button that restarts the log stream."
     },
@@ -59,6 +65,9 @@
     },
     "Running: %lld" : {
       "comment" : "Accessibility label of a Compose project's status. The value is the number of containers that run normally."
+    },
+    "Show in Finder" : {
+      "comment" : "Tooltip of the menu item that shows the directory of a Compose project."
     },
     "Start" : {
       "comment" : "Menu item that starts a container."

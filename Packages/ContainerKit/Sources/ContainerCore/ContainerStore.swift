@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 
 public struct ContainerSection: Identifiable, Equatable, Sendable {
@@ -33,6 +34,11 @@ public struct ContainerGroup: Identifiable, Equatable, Sendable {
     public let containers: [ContainerInfo]
 
     public var id: ContainerGroupRef { ref }
+
+    /// The directory that holds the group's definition, if the runtime reports it.
+    public var workingDirectory: URL? {
+        containers.lazy.compactMap { $0.group?.workingDirectory }.first.map { URL(filePath: $0, directoryHint: .isDirectory) }
+    }
 
     /// The number of member containers in each condition. Conditions without members have no entry.
     public var conditionCounts: [ContainerCondition: Int] {

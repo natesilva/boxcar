@@ -1,3 +1,5 @@
+import Foundation
+
 public enum ContainerState: String, Sendable, Codable {
     case created
     case running
@@ -67,10 +69,35 @@ public struct GroupMembership: Hashable, Sendable {
     public let groupName: String
     /// The container's name inside the group, such as a Compose service name.
     public let memberName: String
+    /// The path of the directory that holds the group's definition, such as a Compose file.
+    public let workingDirectory: String?
 
-    public init(groupName: String, memberName: String) {
+    public init(groupName: String, memberName: String, workingDirectory: String? = nil) {
         self.groupName = groupName
         self.memberName = memberName
+        self.workingDirectory = workingDirectory
+    }
+}
+
+/// A TCP port of a container that the engine publishes on the host.
+public struct PublishedPort: Identifiable, Hashable, Sendable {
+    public let hostPort: Int
+
+    public var id: Int { hostPort }
+
+    /// The address of the port on the Mac, as a person types it.
+    public var address: String { "localhost:\(hostPort)" }
+
+    public var url: URL? {
+        var components = URLComponents()
+        components.scheme = "http"
+        components.host = "localhost"
+        components.port = hostPort
+        return components.url
+    }
+
+    public init(hostPort: Int) {
+        self.hostPort = hostPort
     }
 }
 
@@ -111,6 +138,7 @@ public struct ContainerInfo: Identifiable, Hashable, Sendable {
     public let status: String
     public let group: GroupMembership?
     public let diagnostics: ContainerDiagnostics
+    public let ports: [PublishedPort]
 
     public var id: ContainerRef { ref }
 
@@ -125,7 +153,8 @@ public struct ContainerInfo: Identifiable, Hashable, Sendable {
         state: ContainerState,
         status: String,
         group: GroupMembership? = nil,
-        diagnostics: ContainerDiagnostics = ContainerDiagnostics()
+        diagnostics: ContainerDiagnostics = ContainerDiagnostics(),
+        ports: [PublishedPort] = []
     ) {
         self.ref = ref
         self.name = name
@@ -134,9 +163,10 @@ public struct ContainerInfo: Identifiable, Hashable, Sendable {
         self.status = status
         self.group = group
         self.diagnostics = diagnostics
+        self.ports = ports
     }
 
-    /// The diagnostics of the previous state do not apply to the new state, so they are not kept.
+    /// The diagnostics and ports of the previous state do not apply to the new state, so they are not kept.
     func with(state: ContainerState, status: String) -> ContainerInfo {
         ContainerInfo(ref: ref, name: name, image: image, state: state, status: status, group: group)
     }
