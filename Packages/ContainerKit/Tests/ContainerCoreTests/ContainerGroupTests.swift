@@ -43,7 +43,7 @@ struct ContainerGroupTests {
         let partial = ContainerGroup(ref: ref, containers: [container("app", .running, group: "shop"), container("db", .exited, group: "shop")])
         let stopped = ContainerGroup(ref: ref, containers: [container("app", .exited, group: "shop")])
 
-        #expect(partial.runningCount == 1)
+        #expect(partial.conditionCounts == [.normal: 1, .inactive: 1])
         #expect(partial.allows(.start) && partial.allows(.stop) && partial.allows(.restart))
         #expect(stopped.allows(.start) && !stopped.allows(.stop))
     }

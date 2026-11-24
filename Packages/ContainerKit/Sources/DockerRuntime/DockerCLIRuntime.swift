@@ -48,7 +48,27 @@ public struct DockerCLIRuntime: ContainerRuntime {
             ["--context", source.name, "ps", "--all", "--no-trunc", "--format", "json"],
             timeout: Self.listTimeout
         )
-        return try DockerOutput.containers(from: output).map { $0.containerInfo(in: source) }
+        let containers = try DockerOutput.containers(from: output)
+        let diagnostics = await diagnostics(of: containers.map(\.id), in: source)
+        return containers.map { $0.containerInfo(in: source, diagnostics: diagnostics[$0.id] ?? ContainerDiagnostics()) }
+    }
+
+    /// `docker inspect` fails if a container was removed after `docker ps` listed it.
+    /// The removal also causes a change event, and the next refresh gets the diagnostics.
+    /// Until then, the containers are shown without diagnostics.
+    private func diagnostics(of containerIDs: [String], in source: ContainerSource) async -> [String: ContainerDiagnostics] {
+        guard !containerIDs.isEmpty else {
+            return [:]
+        }
+        do {
+            let output = try await docker(
+                ["--context", source.name, "inspect", "--type", "container"] + containerIDs,
+                timeout: Self.listTimeout
+            )
+            return try DockerOutput.diagnostics(from: output)
+        } catch {
+            return [:]
+        }
     }
 
     public func perform(_ action: ContainerAction, on ref: ContainerRef) async throws {
@@ -67,9 +87,9 @@ public struct DockerCLIRuntime: ContainerRuntime {
         )
     }
 
-    /// Health checks create frequent `exec_*` and `health_status` events.
-    /// The runtime asks only for events that change the container list or a container's state.
-    static let watchedEvents = ["create", "destroy", "start", "stop", "die", "restart", "pause", "unpause", "rename"]
+    /// Health checks create frequent `exec_*` events, so the runtime does not ask for them.
+    /// Docker sends a `health_status` event only when the health status changes.
+    static let watchedEvents = ["create", "destroy", "start", "stop", "die", "restart", "pause", "unpause", "rename", "health_status"]
 
     /// `docker events` runs in back-to-back windows of this length. Each process
     /// exits by itself at the end of its window, so no process stays behind

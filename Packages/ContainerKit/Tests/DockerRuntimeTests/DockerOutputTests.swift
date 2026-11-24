@@ -40,6 +40,22 @@ struct DockerOutputTests {
         #expect(containers[0].status == "Up 2 hours (healthy)")
     }
 
+    @Test func decodesInspectDiagnostics() throws {
+        let output = """
+            [
+              {"Id":"7180","Name":"/db","State":{"Status":"running","ExitCode":0,"OOMKilled":false,"Health":{"Status":"unhealthy","FailingStreak":3,"Log":[]}}},
+              {"Id":"5ef0","Name":"/worker","State":{"Status":"exited","ExitCode":1,"OOMKilled":false}}
+            ]
+            """
+
+        let diagnostics = try DockerOutput.diagnostics(from: output)
+
+        #expect(diagnostics == [
+            "7180": ContainerDiagnostics(health: .unhealthy, exitCode: 0, outOfMemory: false),
+            "5ef0": ContainerDiagnostics(health: nil, exitCode: 1, outOfMemory: false),
+        ])
+    }
+
     @Test func composeLabelsSetGroupMembership() throws {
         let labels = "com.docker.compose.config-hash=abc,com.docker.compose.project.config_files=/a/compose.yml,/a/override.yml,com.docker.compose.project=litellm,com.docker.compose.service=db,com.docker.compose.version=5.5.0"
         let output = #"{"ID":"1","Image":"postgres:16","Names":"litellm-db-1","State":"running","Status":"Up","Labels":"\#(labels)"}"#

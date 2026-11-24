@@ -63,12 +63,57 @@ enum DockerOutput {
         }
     }
 
+    /// One element of the JSON array that `docker inspect --type container` prints.
+    struct Inspection: Decodable, Equatable {
+        let id: String
+        let state: State
+
+        enum CodingKeys: String, CodingKey {
+            case id = "Id"
+            case state = "State"
+        }
+
+        struct State: Decodable, Equatable {
+            let exitCode: Int
+            let oomKilled: Bool
+            let health: Health?
+
+            enum CodingKeys: String, CodingKey {
+                case exitCode = "ExitCode"
+                case oomKilled = "OOMKilled"
+                case health = "Health"
+            }
+        }
+
+        struct Health: Decodable, Equatable {
+            let status: String
+
+            enum CodingKeys: String, CodingKey {
+                case status = "Status"
+            }
+        }
+
+        var diagnostics: ContainerDiagnostics {
+            ContainerDiagnostics(
+                health: state.health.flatMap { HealthStatus(rawValue: $0.status) },
+                exitCode: state.exitCode,
+                outOfMemory: state.oomKilled
+            )
+        }
+    }
+
     static func contexts(from output: String) throws -> [Context] {
         try decodeLines(output)
     }
 
     static func containers(from output: String) throws -> [Container] {
         try decodeLines(output)
+    }
+
+    /// Returns the diagnostics of each inspected container, keyed by container ID.
+    static func diagnostics(from output: String) throws -> [String: ContainerDiagnostics] {
+        let inspections = try JSONDecoder().decode([Inspection].self, from: Data(output.utf8))
+        return Dictionary(inspections.map { ($0.id, $0.diagnostics) }) { first, _ in first }
     }
 
     private static func decodeLines<T: Decodable>(_ output: String) throws -> [T] {
@@ -81,14 +126,15 @@ enum DockerOutput {
 }
 
 extension DockerOutput.Container {
-    func containerInfo(in source: ContainerSource) -> ContainerInfo {
+    func containerInfo(in source: ContainerSource, diagnostics: ContainerDiagnostics = ContainerDiagnostics()) -> ContainerInfo {
         ContainerInfo(
             ref: ContainerRef(source: source, containerID: id),
             name: primaryName,
             image: image,
             state: ContainerState(rawValue: state) ?? .unknown,
             status: status,
-            group: composeMembership
+            group: composeMembership,
+            diagnostics: diagnostics
         )
     }
 }

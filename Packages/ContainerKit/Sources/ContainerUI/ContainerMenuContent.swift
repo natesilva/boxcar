@@ -61,15 +61,15 @@ struct ContainerGroupMenu: View {
             }
         } label: {
             Label {
-                Text(
-                    "\(group.ref.name) (\(group.runningCount)/\(group.containers.count) running)",
-                    bundle: #bundle,
-                    comment: "Menu item for a Compose project. The values are the project name, the number of running containers, and the total number of containers."
-                )
+                Text(group.ref.name)
             } icon: {
-                Image(systemName: group.symbolName)
+                GroupStatusLights(counts: group.conditionCounts)
             }
+            .labelStyle(.titleAndIcon)
         }
+        // The menu keeps the image width of an item that it updates in place, so
+        // a new identity makes it build a new item when the squares change.
+        .id(group.conditionCounts)
     }
 }
 
@@ -98,8 +98,94 @@ struct ContainerMenuItem: View {
                 openWindow(value: container.ref)
             }
         } label: {
-            Label(title, systemImage: container.state.symbolName)
+            Label {
+                Text(title)
+            } icon: {
+                StatusLight(condition: container.condition, isChanging: isChanging)
+            }
+            .labelStyle(.titleAndIcon)
         }
+    }
+
+    /// Docker has no states for starting and stopping. A pending action or a
+    /// first health check that has not finished shows that the state is changing.
+    private var isChanging: Bool {
+        store.isBusy(container) || container.diagnostics.health == .starting
+    }
+}
+
+/// A traffic light symbol in the color of a container's condition.
+struct StatusLight: View {
+    let condition: ContainerCondition
+    let isChanging: Bool
+
+    var body: some View {
+        Image(nsImage: image)
+            .accessibilityLabel(Text(condition.accessibilityLabel))
+    }
+
+    private var image: NSImage {
+        NSImage.symbol(isChanging ? "circle.dotted" : "circle.fill", color: condition.color) ?? NSImage()
+    }
+}
+
+/// One numbered square for each condition that a Compose project's containers are in.
+/// The number is the count of containers in that condition. Stopped containers
+/// have an outlined square, so that the squares of running containers stand out.
+struct GroupStatusLights: View {
+    let counts: [ContainerCondition: Int]
+
+    private static let spacing = 2.0
+
+    var body: some View {
+        Image(nsImage: image)
+            .accessibilityLabel(Text(accessibilityLabel))
+    }
+
+    private var orderedCounts: [(condition: ContainerCondition, count: Int)] {
+        ContainerCondition.allCases.compactMap { condition in
+            counts[condition].map { (condition, $0) }
+        }
+    }
+
+    /// A menu item has only one image, so the squares are drawn side by side into one image.
+    private var image: NSImage {
+        let symbols = orderedCounts.compactMap { condition, count in
+            let shape = condition == .inactive ? "square" : "square.fill"
+            let detailColor: NSColor? = condition == .inactive ? nil : .white
+            // SF Symbols has numbered squares only up to 50.
+            return NSImage.symbol("\(count).\(shape)", color: condition.color, detailColor: detailColor)
+                ?? NSImage.symbol(shape, color: condition.color)
+        }
+        let width = symbols.map(\.size.width).reduce(0, +) + Self.spacing * Double(max(symbols.count - 1, 0))
+        let height = symbols.map(\.size.height).max() ?? 0
+        return NSImage(size: NSSize(width: width, height: height), flipped: false) { _ in
+            var x = 0.0
+            for symbol in symbols {
+                symbol.draw(in: NSRect(x: x, y: (height - symbol.size.height) / 2, width: symbol.size.width, height: symbol.size.height))
+                x += symbol.size.width + Self.spacing
+            }
+            return true
+        }
+    }
+
+    private var accessibilityLabel: String {
+        orderedCounts
+            .map { String(localized: $0.condition.countLabel($0.count)) }
+            .formatted(.list(type: .and))
+    }
+}
+
+extension NSImage {
+    /// The menu draws SF Symbols as template images, which removes a color that
+    /// `foregroundStyle` sets. A palette configuration makes the color part of the image.
+    /// - Parameter detailColor: The color of the symbol's second layer, such as the number
+    ///   in a filled square. With one palette color, that layer has the same color as the
+    ///   first layer and is invisible.
+    static func symbol(_ name: String, color: NSColor, detailColor: NSColor? = nil) -> NSImage? {
+        let colors = detailColor.map { [$0, color] } ?? [color]
+        return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: colors))
     }
 }
 
@@ -121,23 +207,36 @@ extension ContainerAction {
     }
 }
 
-extension ContainerState {
-    var symbolName: String {
+extension ContainerCondition {
+    /// Blending the system colors with gray gives muted colors that suit a menu.
+    private static let saturationReduction = 0.3
+
+    var color: NSColor {
+        let base: NSColor = switch self {
+        case .normal: .systemGreen
+        case .warning: .systemYellow
+        case .critical: .systemRed
+        case .inactive: .systemGray
+        }
+        return base.blended(withFraction: Self.saturationReduction, of: .systemGray) ?? base
+    }
+
+    var accessibilityLabel: LocalizedStringResource {
         switch self {
-        case .running: "play.circle.fill"
-        case .paused: "pause.circle"
-        case .restarting: "arrow.clockwise.circle"
-        case .created, .exited, .dead, .removing, .unknown: "stop.circle"
+        case .normal: LocalizedStringResource("Running", bundle: #bundle, comment: "Accessibility label of the status light of a container that runs normally.")
+        case .warning: LocalizedStringResource("Needs attention", bundle: #bundle, comment: "Accessibility label of the status light of a container that is unhealthy, paused, or exited with an error.")
+        case .critical: LocalizedStringResource("Failed", bundle: #bundle, comment: "Accessibility label of the status light of a container that is dead, in a restart loop, or out of memory.")
+        case .inactive: LocalizedStringResource("Stopped", bundle: #bundle, comment: "Accessibility label of the status light of a container that is stopped.")
+        }
+    }
+
+    func countLabel(_ count: Int) -> LocalizedStringResource {
+        switch self {
+        case .normal: LocalizedStringResource("Running: \(count)", bundle: #bundle, comment: "Accessibility label of a Compose project's status. The value is the number of containers that run normally.")
+        case .warning: LocalizedStringResource("Needs attention: \(count)", bundle: #bundle, comment: "Accessibility label of a Compose project's status. The value is the number of containers that are unhealthy, paused, or exited with an error.")
+        case .critical: LocalizedStringResource("Failed: \(count)", bundle: #bundle, comment: "Accessibility label of a Compose project's status. The value is the number of containers that are dead, in a restart loop, or out of memory.")
+        case .inactive: LocalizedStringResource("Stopped: \(count)", bundle: #bundle, comment: "Accessibility label of a Compose project's status. The value is the number of stopped containers.")
         }
     }
 }
 
-extension ContainerGroup {
-    var symbolName: String {
-        switch runningCount {
-        case containers.count: "play.circle.fill"
-        case 0: "stop.circle"
-        default: "circle.lefthalf.filled"
-        }
-    }
-}

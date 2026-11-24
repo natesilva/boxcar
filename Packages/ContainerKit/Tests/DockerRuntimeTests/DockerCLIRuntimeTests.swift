@@ -30,6 +30,32 @@ struct DockerCLIRuntimeTests {
         #expect(runner.calls.map(\.arguments) == [["--context", "vmpal", "ps", "--all", "--no-trunc", "--format", "json"]])
     }
 
+    @Test func containersIncludeInspectDiagnostics() async throws {
+        let runner = RecordingRunner { arguments in
+            if arguments.contains("ps") {
+                return #"{"ID":"abc","Image":"alpine","Names":"app","State":"exited","Status":"Exited (137)"}"#
+            }
+            return #"[{"Id":"abc","State":{"ExitCode":137,"OOMKilled":true}}]"#
+        }
+        let source = ContainerSource(runtimeID: "docker", name: "vmpal")
+
+        let containers = try await makeRuntime(runner: runner).containers(in: source)
+
+        #expect(runner.calls.last?.arguments == ["--context", "vmpal", "inspect", "--type", "container", "abc"])
+        #expect(containers.map(\.diagnostics) == [ContainerDiagnostics(exitCode: 137, outOfMemory: true)])
+    }
+
+    @Test func containersWithoutInspectDiagnosticsWhenInspectFails() async throws {
+        let runner = RecordingRunner { arguments in
+            arguments.contains("ps") ? #"{"ID":"abc","Image":"alpine","Names":"app","State":"running","Status":"Up"}"# : "not json"
+        }
+        let source = ContainerSource(runtimeID: "docker", name: "vmpal")
+
+        let containers = try await makeRuntime(runner: runner).containers(in: source)
+
+        #expect(containers.map(\.diagnostics) == [ContainerDiagnostics()])
+    }
+
     @Test(arguments: [(ContainerAction.start, "start"), (.stop, "stop"), (.restart, "restart")])
     func performRunsMatchingCommand(action: ContainerAction, command: String) async throws {
         let runner = RecordingRunner(output: "")
@@ -62,7 +88,8 @@ struct DockerCLIRuntimeTests {
         #expect(Array(arguments.prefix(5)) == ["--context", "colima", "events", "--format", "{{.Action}}"])
         #expect(arguments.contains("type=container"))
         #expect(arguments.contains("event=die"))
-        #expect(!arguments.contains("event=health_status"))
+        #expect(arguments.contains("event=health_status"))
+        #expect(!arguments.contains { $0.hasPrefix("event=exec") })
     }
 
     @Test func changesRunInContiguousWindows() async throws {
@@ -107,11 +134,15 @@ final class RecordingRunner: CommandRunner {
         let arguments: [String]
     }
 
-    private let output: String
+    private let respond: @Sendable ([String]) -> String
     private let recorded = Mutex<[Call]>([])
 
     init(output: String) {
-        self.output = output
+        self.respond = { _ in output }
+    }
+
+    init(respond: @escaping @Sendable ([String]) -> String) {
+        self.respond = respond
     }
 
     var calls: [Call] {
@@ -120,14 +151,14 @@ final class RecordingRunner: CommandRunner {
 
     func run(_ executable: URL, arguments: [String], timeout: Duration) async throws -> String {
         recorded.withLock { $0.append(Call(executable: executable, arguments: arguments)) }
-        return output
+        return respond(arguments)
     }
 
     func terminateRunningProcesses() {}
 
     func lines(_ executable: URL, arguments: [String], includeStandardError: Bool) -> AsyncThrowingStream<String, any Error> {
         recorded.withLock { $0.append(Call(executable: executable, arguments: arguments)) }
-        let lines = output.split(whereSeparator: \.isNewline).map(String.init)
+        let lines = respond(arguments).split(whereSeparator: \.isNewline).map(String.init)
         return AsyncThrowingStream { continuation in
             lines.forEach { continuation.yield($0) }
             continuation.finish()

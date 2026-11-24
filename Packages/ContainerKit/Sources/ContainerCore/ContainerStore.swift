@@ -34,8 +34,11 @@ public struct ContainerGroup: Identifiable, Equatable, Sendable {
 
     public var id: ContainerGroupRef { ref }
 
-    public var runningCount: Int {
-        containers.count { $0.state == .running }
+    /// The number of member containers in each condition. Conditions without members have no entry.
+    public var conditionCounts: [ContainerCondition: Int] {
+        containers.reduce(into: [:]) { counts, container in
+            counts[container.condition, default: 0] += 1
+        }
     }
 
     public func allows(_ action: ContainerAction) -> Bool {
