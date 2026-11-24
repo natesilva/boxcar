@@ -7,6 +7,7 @@ struct ShellMenu<Content: View>: View {
     var body: some View {
         content
         Divider()
+        OpenAtLoginToggle()
         Button("About MyApp") {
             NSApp.activate()
             NSApp.orderFrontStandardAboutPanel()
