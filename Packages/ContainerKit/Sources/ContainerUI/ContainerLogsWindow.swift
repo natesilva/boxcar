@@ -16,6 +16,7 @@ public struct ContainerLogsWindow: Scene {
         WindowGroup(LocalizedStringResource("Logs", bundle: #bundle, comment: "Name of the container log window group."), for: ContainerRef.self) { $ref in
             if let ref {
                 ContainerLogView(store: store, ref: ref)
+                    .showsAppInDockWhileVisible()
             }
         }
         .defaultSize(width: 900, height: 540)
