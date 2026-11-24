@@ -151,6 +151,13 @@ struct ContainerMenuItem: View {
         Menu {
             Text(container.image)
             Text(container.status)
+            Divider()
+            Button(LocalizedStringResource("View Logs…", bundle: #bundle, comment: "Menu item that opens the log window of a container."), systemImage: "doc.text") {
+                // A menu bar app is not active by default, so new windows would open behind other apps.
+                NSApp.activate()
+                openWindow(value: container.ref)
+            }
+            .labelStyle(.titleAndIcon)
             if !container.ports.isEmpty {
                 Divider()
                 PortMenuItems(ports: container.ports)
@@ -161,12 +168,6 @@ struct ContainerMenuItem: View {
                     Task { await store.perform(action, on: container) }
                 }
                 .disabled(!container.state.allows(action) || store.isBusy(container))
-            }
-            Divider()
-            Button(LocalizedStringResource("View Logs…", bundle: #bundle, comment: "Menu item that opens the log window of a container.")) {
-                // A menu bar app is not active by default, so new windows would open behind other apps.
-                NSApp.activate()
-                openWindow(value: container.ref)
             }
         } label: {
             Label {
