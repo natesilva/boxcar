@@ -5,9 +5,19 @@ import Foundation
 enum DockerOutput {
     struct Context: Decodable, Equatable {
         let name: String
+        let endpoint: String?
 
         enum CodingKeys: String, CodingKey {
             case name = "Name"
+            case endpoint = "DockerEndpoint"
+        }
+
+        /// The socket path of a `unix://` endpoint. Other endpoint types have no local path.
+        var socketPath: String? {
+            guard let endpoint, let url = URL(string: endpoint), url.scheme == "unix" else {
+                return nil
+            }
+            return url.path
         }
     }
 

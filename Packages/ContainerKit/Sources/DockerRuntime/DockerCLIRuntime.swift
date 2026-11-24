@@ -36,7 +36,9 @@ public struct DockerCLIRuntime: ContainerRuntime {
 
     public func sources() async throws -> [ContainerSource] {
         let output = try await docker(["context", "ls", "--format", "json"], timeout: Self.listTimeout)
-        return try DockerOutput.contexts(from: output).map { ContainerSource(runtimeID: id, name: $0.name) }
+        let contexts = try DockerOutput.contexts(from: output)
+        return DockerOutput.uniqueContexts(contexts, resolveSymlinks: DockerOutput.resolveSymlinks)
+            .map { ContainerSource(runtimeID: id, name: $0.name) }
     }
 
     public func containers(in source: ContainerSource) async throws -> [ContainerInfo] {

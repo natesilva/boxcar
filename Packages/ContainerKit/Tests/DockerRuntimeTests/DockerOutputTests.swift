@@ -13,6 +13,16 @@ struct DockerOutputTests {
         let contexts = try DockerOutput.contexts(from: output)
 
         #expect(contexts.map(\.name) == ["colima", "vmpal"])
+        #expect(contexts.map(\.socketPath) == ["/Users/test/.colima/default/docker.sock", "/Users/test/.vmpal/docker.sock"])
+    }
+
+    @Test func networkEndpointHasNoSocketPath() throws {
+        let output = #"{"Name":"remote","DockerEndpoint":"ssh://user@host"}"#
+
+        let context = try #require(try DockerOutput.contexts(from: output).first)
+
+        #expect(context.endpoint == "ssh://user@host")
+        #expect(context.socketPath == nil)
     }
 
     @Test func decodesContainerList() throws {
