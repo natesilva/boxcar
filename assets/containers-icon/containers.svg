@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <g>
+    <rect x="287" y="254" width="450" height="263" rx="14" fill="#E6F1FC"/>
+    <g fill="#A1D7F9">
+      <rect x="375" y="278" width="10" height="214" rx="5.0"/>
+      <rect x="419" y="278" width="10" height="214" rx="5.0"/>
+      <rect x="463" y="278" width="10" height="214" rx="5.0"/>
+      <rect x="507" y="278" width="10" height="214" rx="5.0"/>
+      <rect x="551" y="278" width="10" height="214" rx="5.0"/>
+      <rect x="595" y="278" width="10" height="214" rx="5.0"/>
+      <rect x="639" y="278" width="10" height="214" rx="5.0"/>
+      <rect x="683" y="278" width="10" height="214" rx="5.0"/>
+    </g>
+    <g fill="#0875CE">
+      <rect x="326" y="274" width="12" height="222"/>
+      <rect x="318.0" y="293" width="28" height="25"/>
+      <rect x="318.0" y="374" width="28" height="25"/>
+      <rect x="318.0" y="454" width="28" height="25"/>
+    </g>
+  </g>
+  <g>
+    <rect x="151" y="518" width="360" height="261" rx="14" fill="#023C7C"/>
+    <g fill="#48BAF9">
+      <rect x="239.0" y="543" width="11" height="211" rx="5.5"/>
+      <rect x="283.6" y="543" width="11" height="211" rx="5.5"/>
+      <rect x="328.2" y="543" width="11" height="211" rx="5.5"/>
+      <rect x="372.8" y="543" width="11" height="211" rx="5.5"/>
+      <rect x="417.4" y="543" width="11" height="211" rx="5.5"/>
+      <rect x="462.0" y="543" width="11" height="211" rx="5.5"/>
+    </g>
+    <g fill="#50BCFE">
+      <rect x="191" y="540" width="11" height="218"/>
+      <rect x="183.0" y="558" width="27" height="25"/>
+      <rect x="183.0" y="639" width="27" height="25"/>
+      <rect x="183.0" y="717" width="27" height="25"/>
+    </g>
+  </g>
+  <g>
+    <rect x="514" y="518" width="359" height="261" rx="14" fill="#04D0F3"/>
+    <g fill="#94F0FB">
+      <rect x="600.0" y="543" width="11.5" height="212" rx="5.75"/>
+      <rect x="644.6" y="543" width="11.5" height="212" rx="5.75"/>
+      <rect x="689.2" y="543" width="11.5" height="212" rx="5.75"/>
+      <rect x="733.8" y="543" width="11.5" height="212" rx="5.75"/>
+      <rect x="778.4" y="543" width="11.5" height="212" rx="5.75"/>
+      <rect x="823.0" y="543" width="11.5" height="212" rx="5.75"/>
+    </g>
+    <g fill="#9BF1FC">
+      <rect x="553" y="540" width="11" height="218"/>
+      <rect x="544.5" y="558" width="28" height="25"/>
+      <rect x="544.5" y="639" width="28" height="25"/>
+      <rect x="544.5" y="717" width="28" height="25"/>
+    </g>
+  </g>
+</svg>
