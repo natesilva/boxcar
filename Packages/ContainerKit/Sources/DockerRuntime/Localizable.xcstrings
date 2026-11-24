@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "Not running" : {
+      "comment" : "Error shown under a Docker context whose engine does not accept connections, for example because its app was quit."
+    },
     "The command did not respond in time." : {
       "comment" : "Error shown when a docker command takes too long."
     },

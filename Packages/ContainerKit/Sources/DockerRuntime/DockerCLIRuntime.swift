@@ -3,11 +3,24 @@ import Foundation
 
 public enum DockerError: LocalizedError, Equatable {
     case cliNotFound
+    case engineNotRunning
 
     public var errorDescription: String? {
         switch self {
         case .cliNotFound: String(localized: "The docker CLI was not found.", bundle: #bundle, comment: "Error shown when the app cannot find the docker executable.")
+        case .engineNotRunning: String(localized: "Not running", bundle: #bundle, comment: "Error shown under a Docker context whose engine does not accept connections, for example because its app was quit.")
         }
+    }
+
+    private static let unreachableMarkers = ["failed to connect to the docker api", "cannot connect to the docker daemon"]
+
+    /// The docker CLI reports an unreachable engine with a long message that contains the socket path.
+    static func isEngineUnreachable(_ error: any Error) -> Bool {
+        guard case CommandError.failed(let message) = error else {
+            return false
+        }
+        let lowercased = message.lowercased()
+        return unreachableMarkers.contains { lowercased.contains($0) }
     }
 }
 
@@ -44,10 +57,15 @@ public struct DockerCLIRuntime: ContainerRuntime {
     }
 
     public func containers(in source: ContainerSource) async throws -> [ContainerInfo] {
-        let output = try await docker(
-            ["--context", source.name, "ps", "--all", "--no-trunc", "--format", "json"],
-            timeout: Self.listTimeout
-        )
+        let output: String
+        do {
+            output = try await docker(
+                ["--context", source.name, "ps", "--all", "--no-trunc", "--format", "json"],
+                timeout: Self.listTimeout
+            )
+        } catch where DockerError.isEngineUnreachable(error) {
+            throw DockerError.engineNotRunning
+        }
         let containers = try DockerOutput.containers(from: output)
         let diagnostics = await diagnostics(of: containers.map(\.id), in: source)
         return containers.map { $0.containerInfo(in: source, diagnostics: diagnostics[$0.id] ?? ContainerDiagnostics()) }
