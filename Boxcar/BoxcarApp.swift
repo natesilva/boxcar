@@ -11,6 +11,9 @@ import SwiftUI
         let containerStore = ContainerStore(runtimes: [DockerCLIRuntime()])
         store = containerStore
         Task { await containerStore.start() }
+        _ = NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main) { _ in
+            Task { await containerStore.refresh() }
+        }
         _ = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { containerStore.shutdown() }
         }
