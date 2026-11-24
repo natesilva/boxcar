@@ -13,7 +13,9 @@ public protocol ContainerRuntime: Sendable {
     func changes(in source: ContainerSource) async -> AsyncThrowingStream<Void, any Error>
 
     /// Yields recent log lines of the container, then new lines as the container writes them.
-    func logs(for ref: ContainerRef) async -> AsyncThrowingStream<String, any Error>
+    /// - Parameter lastLine: The last line that an earlier stream of this container yielded.
+    ///   If it is not `nil`, the stream yields only the lines that the container wrote after that line.
+    func logs(for ref: ContainerRef, after lastLine: String?) async -> AsyncThrowingStream<String, any Error>
 
     /// Stops background work synchronously. The app calls this when it terminates.
     func shutdown()
@@ -21,4 +23,8 @@ public protocol ContainerRuntime: Sendable {
 
 extension ContainerRuntime {
     public func shutdown() {}
+
+    public func logs(for ref: ContainerRef) async -> AsyncThrowingStream<String, any Error> {
+        await logs(for: ref, after: nil)
+    }
 }

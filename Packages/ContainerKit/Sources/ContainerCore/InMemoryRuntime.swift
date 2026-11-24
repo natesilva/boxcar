@@ -63,9 +63,11 @@ public actor InMemoryRuntime: ContainerRuntime {
         return stream
     }
 
-    public func logs(for ref: ContainerRef) async -> AsyncThrowingStream<String, any Error> {
-        AsyncThrowingStream { continuation in
-            (1...3).forEach { continuation.yield("\(ref.containerID) log line \($0)") }
+    public func logs(for ref: ContainerRef, after lastLine: String?) async -> AsyncThrowingStream<String, any Error> {
+        let lines = (1...3).map { "\(ref.containerID) log line \($0)" }
+        let newLines = lastLine.flatMap(lines.firstIndex(of:)).map { Array(lines[($0 + 1)...]) } ?? lines
+        return AsyncThrowingStream { continuation in
+            newLines.forEach { continuation.yield($0) }
             continuation.finish()
         }
     }

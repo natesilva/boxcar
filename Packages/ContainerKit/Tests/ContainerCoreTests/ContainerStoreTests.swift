@@ -65,6 +65,19 @@ struct ContainerStoreTests {
         #expect(store.container(for: web.ref) == web)
     }
 
+    @Test func logsAfterALineYieldOnlyLaterLines() async throws {
+        let store = ContainerStore(runtimes: [InMemoryRuntime.sample()])
+        await store.refresh()
+        let web = try #require(store.sections[0].containers.first { $0.name == "web" })
+
+        var lines: [String] = []
+        for try await line in await store.logs(for: web.ref, after: "web log line 2") {
+            lines.append(line)
+        }
+
+        #expect(lines == ["web log line 3"])
+    }
+
     @Test func failingSourceDoesNotAffectOtherSources() async {
         let store = ContainerStore(runtimes: [FailingRuntime(failingSource: "broken")])
 
@@ -115,7 +128,7 @@ struct FailingRuntime: ContainerRuntime {
         AsyncThrowingStream { $0.finish(throwing: EngineError()) }
     }
 
-    func logs(for ref: ContainerRef) async -> AsyncThrowingStream<String, any Error> {
+    func logs(for ref: ContainerRef, after lastLine: String?) async -> AsyncThrowingStream<String, any Error> {
         AsyncThrowingStream { $0.finish(throwing: EngineError()) }
     }
 }
@@ -153,7 +166,7 @@ final class CountingRuntime: ContainerRuntime {
         return AsyncThrowingStream { $0.finish() }
     }
 
-    func logs(for ref: ContainerRef) async -> AsyncThrowingStream<String, any Error> {
+    func logs(for ref: ContainerRef, after lastLine: String?) async -> AsyncThrowingStream<String, any Error> {
         AsyncThrowingStream { $0.finish() }
     }
 }

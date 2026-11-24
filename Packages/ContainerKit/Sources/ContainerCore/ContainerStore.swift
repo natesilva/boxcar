@@ -110,11 +110,11 @@ public final class ContainerStore {
         sections.lazy.flatMap(\.containers).first { $0.ref == ref }
     }
 
-    public func logs(for ref: ContainerRef) async -> AsyncThrowingStream<String, any Error> {
+    public func logs(for ref: ContainerRef, after lastLine: String? = nil) async -> AsyncThrowingStream<String, any Error> {
         guard let runtime = runtime(for: ref.source) else {
             return AsyncThrowingStream { $0.finish() }
         }
-        return await runtime.logs(for: ref)
+        return await runtime.logs(for: ref, after: lastLine)
     }
 
     public func refresh() async {

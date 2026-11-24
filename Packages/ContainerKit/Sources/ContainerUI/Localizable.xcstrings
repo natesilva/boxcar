@@ -27,6 +27,9 @@
     "Loading…" : {
       "comment" : "Shown in the menu until the container list has loaded."
     },
+    "Log stream resumed" : {
+      "comment" : "Line in the log window that separates the lines before a restart of the log stream from the lines after it."
+    },
     "Logs" : {
       "comment" : "Name of the container log window group."
     },

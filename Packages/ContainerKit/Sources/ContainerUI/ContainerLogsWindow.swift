@@ -41,10 +41,13 @@ struct ContainerLogView: View {
     @State private var nextLineID = 0
     @State private var connection = 0
     @State private var streamEnd: StreamEnd?
+    @State private var lastRawLine: String?
 
     /// The window keeps at most this many lines, so a noisy container
     /// cannot make the window use unlimited memory.
     private static let maxLines = 10_000
+
+    private static let resumeDelay: Duration = .seconds(1)
 
     var body: some View {
         ScrollView {
@@ -90,21 +93,48 @@ struct ContainerLogView: View {
         .task(id: connection) {
             await follow()
         }
+        .task(id: shouldResume) {
+            await resumeAfterRestart()
+        }
     }
 
     private var containerName: String {
         store.container(for: ref)?.name ?? ref.containerID
     }
 
+    /// A stream that ended while the container ran is the stream of an earlier run.
+    private var shouldResume: Bool {
+        streamEnd == .finished && store.container(for: ref)?.state == .running
+    }
+
+    /// The store can report the new state of a container a moment after the stream ends,
+    /// so the window waits before it checks again. A stream that ends again at once
+    /// is therefore tried at most once per delay.
+    private func resumeAfterRestart() async {
+        guard shouldResume else {
+            return
+        }
+        try? await Task.sleep(for: Self.resumeDelay)
+        if !Task.isCancelled && shouldResume {
+            connection += 1
+        }
+    }
+
+    /// The window keeps its lines when it follows the log again, so that the
+    /// output before a stop stays visible. A new stream starts after the last line.
     private func follow() async {
-        lines.removeAll()
+        var needsNotice = !lines.isEmpty
         streamEnd = nil
         do {
             // Adding each line in its own update makes the scroll view lay out and
             // scroll once per line, so the initial tail would visibly scroll past.
             // The window adds all lines that arrive within one interval together.
-            let batches = await store.logs(for: ref).chunks(ofCount: Self.maxLines, or: .repeating(every: .milliseconds(100)))
-            for try await batch in batches {
+            let batches = await store.logs(for: ref, after: lastRawLine).chunks(ofCount: Self.maxLines, or: .repeating(every: .milliseconds(100)))
+            for try await batch in batches where !batch.isEmpty {
+                if needsNotice && connection > 0 {
+                    appendNotice()
+                }
+                needsNotice = false
                 append(batch)
             }
             streamEnd = .finished
@@ -114,11 +144,19 @@ struct ContainerLogView: View {
         }
     }
 
+    /// Separates the lines of an earlier stream from the lines of a later one.
+    private func appendNotice() {
+        let text = String(localized: "Log stream resumed", bundle: #bundle, comment: "Line in the log window that separates the lines before a restart of the log stream from the lines after it.")
+        lines.append(LogLine(id: nextLineID, text: text))
+        nextLineID += 1
+    }
+
     private func append(_ batch: [String]) {
         lines += batch.enumerated().map { offset, text in
             LogLine(id: nextLineID + offset, text: text.removingANSIEscapeSequences())
         }
         nextLineID += batch.count
+        lastRawLine = batch.last
         if lines.count > Self.maxLines {
             lines.removeFirst(lines.count - Self.maxLines)
         }

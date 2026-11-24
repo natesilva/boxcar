@@ -118,6 +118,20 @@ struct DockerCLIRuntimeTests {
         #expect(runner.calls.map(\.arguments) == [["--context", "vmpal", "logs", "--follow", "--timestamps", "--tail", "500", "abc"]])
     }
 
+    @Test func logsAfterALineStartAtItsTimestampAndDropItsRepeat() async throws {
+        let last = "2026-11-24T12:00:00.123456789Z last line"
+        let runner = RecordingRunner(output: "\(last)\n2026-11-24T12:00:05.000000000Z new line")
+        let ref = ContainerRef(source: ContainerSource(runtimeID: "docker", name: "vmpal"), containerID: "abc")
+
+        var lines: [String] = []
+        for try await line in await makeRuntime(runner: runner).logs(for: ref, after: last) {
+            lines.append(line)
+        }
+
+        #expect(runner.calls.map(\.arguments) == [["--context", "vmpal", "logs", "--follow", "--timestamps", "--since", "2026-11-24T12:00:00.123456789Z", "--tail", "500", "abc"]])
+        #expect(lines == ["2026-11-24T12:00:05.000000000Z new line"])
+    }
+
     @Test func missingCLIThrowsWithoutRunning() async {
         let runner = RecordingRunner(output: "")
 

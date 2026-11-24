@@ -128,16 +128,44 @@ public struct DockerCLIRuntime: ContainerRuntime {
 
     static let logTailLines = 500
 
-    public func logs(for ref: ContainerRef) async -> AsyncThrowingStream<String, any Error> {
+    /// `docker logs --since` includes lines with exactly the given timestamp, so the
+    /// stream drops its first line if that line is the last line of the earlier stream.
+    /// The timestamp is the first word of the line, because the runtime asks for `--timestamps`.
+    /// The runtime does not compare the timestamp with the clock of the Mac, because the
+    /// clock of a container VM can differ from it.
+    public func logs(for ref: ContainerRef, after lastLine: String?) async -> AsyncThrowingStream<String, any Error> {
         guard let executable = locator.locate() else {
             return AsyncThrowingStream { $0.finish(throwing: DockerError.cliNotFound) }
         }
+        let since = lastLine?.split(separator: " ", maxSplits: 1).first.map(String.init)
+        let sinceArguments = since.map { ["--since", $0] } ?? []
         // `docker logs` writes the container's standard error to its own standard error.
-        return runner.lines(
+        let lines = runner.lines(
             executable,
-            arguments: ["--context", ref.source.name, "logs", "--follow", "--timestamps", "--tail", String(Self.logTailLines), ref.containerID],
+            arguments: ["--context", ref.source.name, "logs", "--follow", "--timestamps"] + sinceArguments + ["--tail", String(Self.logTailLines), ref.containerID],
             includeStandardError: true
         )
+        guard let lastLine else {
+            return lines
+        }
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    var isFirstLine = true
+                    for try await line in lines {
+                        defer { isFirstLine = false }
+                        if isFirstLine && line == lastLine {
+                            continue
+                        }
+                        continuation.yield(line)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 
     public func shutdown() {
