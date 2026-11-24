@@ -14,21 +14,13 @@ public struct ContainerMenuContent: View {
             Text("Loading…", bundle: #bundle, comment: "Shown in the menu until the container list has loaded.")
         }
         ForEach(store.sections) { section in
-            Section(section.source.name) {
-                if let errorMessage = section.errorMessage {
-                    Text(errorMessage)
-                } else if section.containers.isEmpty {
-                    Text("No containers", bundle: #bundle, comment: "Shown under a Docker context that has no containers.")
-                } else {
-                    ForEach(section.items) { item in
-                        switch item {
-                        case .container(let container):
-                            ContainerMenuItem(store: store, container: container, title: container.name)
-                        case .group(let group):
-                            ContainerGroupMenu(store: store, group: group)
-                        }
-                    }
+            // The name of the only source is not useful as a heading.
+            if store.sections.count > 1 {
+                Section(section.source.name) {
+                    rows(for: section)
                 }
+            } else {
+                rows(for: section)
             }
         }
         if let lastActionError = store.lastActionError {
@@ -40,6 +32,26 @@ public struct ContainerMenuContent: View {
             Task { await store.refresh() }
         }
         .keyboardShortcut("r")
+    }
+}
+
+extension ContainerMenuContent {
+    @ViewBuilder
+    private func rows(for section: ContainerSection) -> some View {
+        if let errorMessage = section.errorMessage {
+            Text(errorMessage)
+        } else if section.containers.isEmpty {
+            Text("No containers", bundle: #bundle, comment: "Shown under a Docker context that has no containers.")
+        } else {
+            ForEach(section.items) { item in
+                switch item {
+                case .container(let container):
+                    ContainerMenuItem(store: store, container: container, title: container.name)
+                case .group(let group):
+                    ContainerGroupMenu(store: store, group: group)
+                }
+            }
+        }
     }
 }
 
