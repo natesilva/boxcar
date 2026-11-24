@@ -38,12 +38,23 @@ public actor InMemoryRuntime: ContainerRuntime {
         guard let index = containerList.firstIndex(where: { $0.ref == ref }) else {
             throw Failure.containerNotFound(ref.containerID)
         }
+        apply(action, at: index)
+        subscribers[ref.source, default: []].forEach { $0.yield() }
+    }
+
+    public func perform(_ action: ContainerAction, on group: ContainerGroupRef) async throws {
+        for index in containerList.indices where containerList[index].groupRef == group {
+            apply(action, at: index)
+        }
+        subscribers[group.source, default: []].forEach { $0.yield() }
+    }
+
+    private func apply(_ action: ContainerAction, at index: Int) {
         let container = containerList[index]
         containerList[index] = switch action {
         case .start, .restart: container.with(state: .running, status: "Up 1 second")
         case .stop: container.with(state: .exited, status: "Exited (0) 1 second ago")
         }
-        subscribers[ref.source, default: []].forEach { $0.yield() }
     }
 
     public func changes(in source: ContainerSource) async -> AsyncThrowingStream<Void, any Error> {

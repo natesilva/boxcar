@@ -27,6 +27,7 @@ enum DockerOutput {
         let image: String
         let state: String
         let status: String
+        let labels: String?
 
         enum CodingKeys: String, CodingKey {
             case id = "ID"
@@ -34,6 +35,26 @@ enum DockerOutput {
             case image = "Image"
             case state = "State"
             case status = "Status"
+            case labels = "Labels"
+        }
+
+        /// `Labels` is one comma-separated string of `key=value` pairs. Some values,
+        /// such as Compose's `config_files`, can contain commas, so splitting on commas
+        /// is reliable only for labels whose values cannot contain them. Compose project
+        /// and service names cannot.
+        func label(_ key: String) -> String? {
+            let prefix = "\(key)="
+            return labels?
+                .split(separator: ",")
+                .first { $0.hasPrefix(prefix) }
+                .map { String($0.dropFirst(prefix.count)) }
+        }
+
+        var composeMembership: GroupMembership? {
+            guard let project = label("com.docker.compose.project") else {
+                return nil
+            }
+            return GroupMembership(groupName: project, memberName: label("com.docker.compose.service") ?? primaryName)
         }
 
         /// `Names` is a comma-separated list. The first name is the container's own name.
@@ -66,7 +87,8 @@ extension DockerOutput.Container {
             name: primaryName,
             image: image,
             state: ContainerState(rawValue: state) ?? .unknown,
-            status: status
+            status: status,
+            group: composeMembership
         )
     }
 }

@@ -12,6 +12,17 @@
         }
       }
     },
+    "%@ (%lld/%lld running)" : {
+      "comment" : "Menu item for a Compose project. The values are the project name, the number of running containers, and the total number of containers.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (%2$lld/%3$lld running)"
+          }
+        }
+      }
+    },
     "Clear" : {
       "comment" : "Toolbar button that removes all log lines from the window."
     },
@@ -36,11 +47,20 @@
     "Restart" : {
       "comment" : "Menu item that restarts a container."
     },
+    "Restart All" : {
+      "comment" : "Menu item that restarts all containers of a Compose project."
+    },
     "Start" : {
       "comment" : "Menu item that starts a container."
     },
+    "Start All" : {
+      "comment" : "Menu item that starts all containers of a Compose project."
+    },
     "Stop" : {
       "comment" : "Menu item that stops a container."
+    },
+    "Stop All" : {
+      "comment" : "Menu item that stops all containers of a Compose project."
     },
     "The log stream ended." : {
       "comment" : "Shown at the bottom of the log window when the log stream stops."

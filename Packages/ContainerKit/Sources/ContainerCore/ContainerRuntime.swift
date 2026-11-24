@@ -6,6 +6,7 @@ public protocol ContainerRuntime: Sendable {
     func sources() async throws -> [ContainerSource]
     func containers(in source: ContainerSource) async throws -> [ContainerInfo]
     func perform(_ action: ContainerAction, on ref: ContainerRef) async throws
+    func perform(_ action: ContainerAction, on group: ContainerGroupRef) async throws
 
     /// Yields a value each time a container in the source changes.
     /// The stream throws or finishes when the source becomes unreachable.

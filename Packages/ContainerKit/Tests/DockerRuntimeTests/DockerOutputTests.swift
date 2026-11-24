@@ -40,6 +40,26 @@ struct DockerOutputTests {
         #expect(containers[0].status == "Up 2 hours (healthy)")
     }
 
+    @Test func composeLabelsSetGroupMembership() throws {
+        let labels = "com.docker.compose.config-hash=abc,com.docker.compose.project.config_files=/a/compose.yml,/a/override.yml,com.docker.compose.project=litellm,com.docker.compose.service=db,com.docker.compose.version=5.5.0"
+        let output = #"{"ID":"1","Image":"postgres:16","Names":"litellm-db-1","State":"running","Status":"Up","Labels":"\#(labels)"}"#
+        let source = ContainerSource(runtimeID: "docker", name: "vmpal")
+
+        let container = try #require(try DockerOutput.containers(from: output).first).containerInfo(in: source)
+
+        #expect(container.group == GroupMembership(groupName: "litellm", memberName: "db"))
+        #expect(container.groupRef == ContainerGroupRef(source: source, name: "litellm"))
+    }
+
+    @Test func containerWithoutComposeLabelsHasNoGroup() throws {
+        let output = #"{"ID":"1","Image":"alpine","Names":"solo","State":"running","Status":"Up","Labels":"maintainer=someone"}"#
+        let source = ContainerSource(runtimeID: "docker", name: "colima")
+
+        let container = try #require(try DockerOutput.containers(from: output).first).containerInfo(in: source)
+
+        #expect(container.group == nil)
+    }
+
     @Test func emptyOutputHasNoContainers() throws {
         #expect(try DockerOutput.containers(from: "").isEmpty)
     }

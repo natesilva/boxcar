@@ -20,8 +20,13 @@ public struct ContainerMenuContent: View {
                 } else if section.containers.isEmpty {
                     Text("No containers", bundle: #bundle, comment: "Shown under a Docker context that has no containers.")
                 } else {
-                    ForEach(section.containers) { container in
-                        ContainerMenuItem(store: store, container: container)
+                    ForEach(section.items) { item in
+                        switch item {
+                        case .container(let container):
+                            ContainerMenuItem(store: store, container: container, title: container.name)
+                        case .group(let group):
+                            ContainerGroupMenu(store: store, group: group)
+                        }
                     }
                 }
             }
@@ -38,9 +43,40 @@ public struct ContainerMenuContent: View {
     }
 }
 
+struct ContainerGroupMenu: View {
+    let store: ContainerStore
+    let group: ContainerGroup
+
+    var body: some View {
+        Menu {
+            ForEach(group.containers) { container in
+                ContainerMenuItem(store: store, container: container, title: container.group?.memberName ?? container.name)
+            }
+            Divider()
+            ForEach(ContainerAction.allCases, id: \.self) { action in
+                Button(action.groupTitle) {
+                    Task { await store.perform(action, on: group) }
+                }
+                .disabled(!group.allows(action) || store.pendingGroupActions.contains(group.ref))
+            }
+        } label: {
+            Label {
+                Text(
+                    "\(group.ref.name) (\(group.runningCount)/\(group.containers.count) running)",
+                    bundle: #bundle,
+                    comment: "Menu item for a Compose project. The values are the project name, the number of running containers, and the total number of containers."
+                )
+            } icon: {
+                Image(systemName: group.symbolName)
+            }
+        }
+    }
+}
+
 struct ContainerMenuItem: View {
     let store: ContainerStore
     let container: ContainerInfo
+    let title: String
 
     @Environment(\.openWindow) private var openWindow
 
@@ -53,7 +89,7 @@ struct ContainerMenuItem: View {
                 Button(action.title) {
                     Task { await store.perform(action, on: container) }
                 }
-                .disabled(!container.state.allows(action) || store.pendingActions.contains(container.ref))
+                .disabled(!container.state.allows(action) || store.isBusy(container))
             }
             Divider()
             Button(LocalizedStringResource("View Logs…", bundle: #bundle, comment: "Menu item that opens the log window of a container.")) {
@@ -62,7 +98,7 @@ struct ContainerMenuItem: View {
                 openWindow(value: container.ref)
             }
         } label: {
-            Label(container.name, systemImage: container.state.symbolName)
+            Label(title, systemImage: container.state.symbolName)
         }
     }
 }
@@ -75,6 +111,14 @@ extension ContainerAction {
         case .restart: LocalizedStringResource("Restart", bundle: #bundle, comment: "Menu item that restarts a container.")
         }
     }
+
+    var groupTitle: LocalizedStringResource {
+        switch self {
+        case .start: LocalizedStringResource("Start All", bundle: #bundle, comment: "Menu item that starts all containers of a Compose project.")
+        case .stop: LocalizedStringResource("Stop All", bundle: #bundle, comment: "Menu item that stops all containers of a Compose project.")
+        case .restart: LocalizedStringResource("Restart All", bundle: #bundle, comment: "Menu item that restarts all containers of a Compose project.")
+        }
+    }
 }
 
 extension ContainerState {
@@ -84,6 +128,16 @@ extension ContainerState {
         case .paused: "pause.circle"
         case .restarting: "arrow.clockwise.circle"
         case .created, .exited, .dead, .removing, .unknown: "stop.circle"
+        }
+    }
+}
+
+extension ContainerGroup {
+    var symbolName: String {
+        switch runningCount {
+        case containers.count: "play.circle.fill"
+        case 0: "stop.circle"
+        default: "circle.lefthalf.filled"
         }
     }
 }

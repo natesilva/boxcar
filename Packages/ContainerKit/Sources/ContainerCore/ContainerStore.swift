@@ -6,6 +6,58 @@ public struct ContainerSection: Identifiable, Equatable, Sendable {
     public let errorMessage: String?
 
     public var id: ContainerSource.ID { source.id }
+
+    /// The section's containers, with the members of each group collected into one item.
+    /// Each group takes the position of its first member, so the runtime's order is kept.
+    public var items: [ContainerSectionItem] {
+        var items: [ContainerSectionItem] = []
+        var groupIndex: [ContainerGroupRef: Int] = [:]
+        for container in containers {
+            guard let groupRef = container.groupRef else {
+                items.append(.container(container))
+                continue
+            }
+            if let index = groupIndex[groupRef], case .group(let group) = items[index] {
+                items[index] = .group(ContainerGroup(ref: groupRef, containers: group.containers + [container]))
+            } else {
+                groupIndex[groupRef] = items.count
+                items.append(.group(ContainerGroup(ref: groupRef, containers: [container])))
+            }
+        }
+        return items
+    }
+}
+
+public struct ContainerGroup: Identifiable, Equatable, Sendable {
+    public let ref: ContainerGroupRef
+    public let containers: [ContainerInfo]
+
+    public var id: ContainerGroupRef { ref }
+
+    public var runningCount: Int {
+        containers.count { $0.state == .running }
+    }
+
+    public func allows(_ action: ContainerAction) -> Bool {
+        containers.contains { $0.state.allows(action) }
+    }
+}
+
+public enum ContainerSectionItem: Identifiable, Equatable, Sendable {
+    case container(ContainerInfo)
+    case group(ContainerGroup)
+
+    public enum ID: Hashable {
+        case container(ContainerRef)
+        case group(ContainerGroupRef)
+    }
+
+    public var id: ID {
+        switch self {
+        case .container(let container): .container(container.ref)
+        case .group(let group): .group(group.ref)
+        }
+    }
 }
 
 @MainActor
@@ -14,6 +66,7 @@ public final class ContainerStore {
     public private(set) var sections: [ContainerSection] = []
     public private(set) var hasLoaded = false
     public private(set) var pendingActions: Set<ContainerRef> = []
+    public private(set) var pendingGroupActions: Set<ContainerGroupRef> = []
     public private(set) var lastActionError: String?
 
     private let runtimes: [any ContainerRuntime]
@@ -89,6 +142,26 @@ public final class ContainerStore {
         }
         pendingActions.remove(container.ref)
         await refreshSection(container.ref.source)
+    }
+
+    public func perform(_ action: ContainerAction, on group: ContainerGroup) async {
+        guard let runtime = runtime(for: group.ref.source) else {
+            return
+        }
+        pendingGroupActions.insert(group.ref)
+        do {
+            try await runtime.perform(action, on: group.ref)
+            lastActionError = nil
+        } catch {
+            lastActionError = "\(group.ref.name): \(error.localizedDescription)"
+        }
+        pendingGroupActions.remove(group.ref)
+        await refreshSection(group.ref.source)
+    }
+
+    /// A container action is not available while its own action or an action on its group runs.
+    public func isBusy(_ container: ContainerInfo) -> Bool {
+        pendingActions.contains(container.ref) || container.groupRef.map(pendingGroupActions.contains) == true
     }
 
     private func runtime(for source: ContainerSource) -> (any ContainerRuntime)? {

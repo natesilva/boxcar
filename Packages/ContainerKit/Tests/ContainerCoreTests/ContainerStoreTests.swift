@@ -109,6 +109,8 @@ struct FailingRuntime: ContainerRuntime {
 
     func perform(_ action: ContainerAction, on ref: ContainerRef) async throws {}
 
+    func perform(_ action: ContainerAction, on group: ContainerGroupRef) async throws {}
+
     func changes(in source: ContainerSource) async -> AsyncThrowingStream<Void, any Error> {
         AsyncThrowingStream { $0.finish(throwing: EngineError()) }
     }
@@ -143,6 +145,8 @@ final class CountingRuntime: ContainerRuntime {
     func containers(in source: ContainerSource) async throws -> [ContainerInfo] { [] }
 
     func perform(_ action: ContainerAction, on ref: ContainerRef) async throws {}
+
+    func perform(_ action: ContainerAction, on group: ContainerGroupRef) async throws {}
 
     func changes(in source: ContainerSource) async -> AsyncThrowingStream<Void, any Error> {
         count.withLock { $0 += 1 }

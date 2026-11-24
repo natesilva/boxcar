@@ -23,6 +23,8 @@ public struct DockerCLIRuntime: ContainerRuntime {
     private static let listTimeout: Duration = .seconds(15)
     /// `docker stop` waits up to 10 seconds before it kills the container, so actions need a longer timeout.
     private static let actionTimeout: Duration = .seconds(60)
+    /// Compose stops a project's containers in dependency order, so a project takes longer than one container.
+    private static let groupActionTimeout: Duration = .seconds(180)
 
     public init(
         locator: DockerCLILocator = DockerCLILocator(),
@@ -53,6 +55,15 @@ public struct DockerCLIRuntime: ContainerRuntime {
         _ = try await docker(
             ["--context", ref.source.name, action.dockerCommand, ref.containerID],
             timeout: Self.actionTimeout
+        )
+    }
+
+    /// Compose finds a project's containers by their labels, so the compose file is not needed.
+    /// Compose also starts and stops the services in the order of their `depends_on` settings.
+    public func perform(_ action: ContainerAction, on group: ContainerGroupRef) async throws {
+        _ = try await docker(
+            ["--context", group.source.name, "compose", "--project-name", group.name, action.dockerCommand],
+            timeout: Self.groupActionTimeout
         )
     }
 

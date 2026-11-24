@@ -40,6 +40,16 @@ struct DockerCLIRuntimeTests {
         #expect(runner.calls.map(\.arguments) == [["--context", "colima", command, "abc"]])
     }
 
+    @Test(arguments: [(ContainerAction.start, "start"), (.stop, "stop"), (.restart, "restart")])
+    func groupActionRunsComposeByProjectName(action: ContainerAction, command: String) async throws {
+        let runner = RecordingRunner(output: "")
+        let group = ContainerGroupRef(source: ContainerSource(runtimeID: "docker", name: "vmpal"), name: "litellm")
+
+        try await makeRuntime(runner: runner).perform(action, on: group)
+
+        #expect(runner.calls.map(\.arguments) == [["--context", "vmpal", "compose", "--project-name", "litellm", command]])
+    }
+
     @Test func changesWatchStateEventsOnly() async throws {
         let runner = RecordingRunner(output: "start")
         let source = ContainerSource(runtimeID: "docker", name: "colima")
