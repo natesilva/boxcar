@@ -130,8 +130,8 @@ struct StatusLight: View {
 }
 
 /// One numbered square for each condition that a Compose project's containers are in.
-/// The number is the count of containers in that condition. Stopped containers
-/// have an outlined square, so that the squares of running containers stand out.
+/// The number is the count of containers in that condition. The squares are
+/// outlines, so that a menu with many running containers is not mostly green.
 struct GroupStatusLights: View {
     let counts: [ContainerCondition: Int]
 
@@ -151,11 +151,8 @@ struct GroupStatusLights: View {
     /// A menu item has only one image, so the squares are drawn side by side into one image.
     private var image: NSImage {
         let symbols = orderedCounts.compactMap { condition, count in
-            let shape = condition == .inactive ? "square" : "square.fill"
-            let detailColor: NSColor? = condition == .inactive ? nil : .white
             // SF Symbols has numbered squares only up to 50.
-            return NSImage.symbol("\(count).\(shape)", color: condition.color, detailColor: detailColor)
-                ?? NSImage.symbol(shape, color: condition.color)
+            NSImage.symbol("\(count).square", color: condition.color) ?? NSImage.symbol("square", color: condition.color)
         }
         let width = symbols.map(\.size.width).reduce(0, +) + Self.spacing * Double(max(symbols.count - 1, 0))
         let height = symbols.map(\.size.height).max() ?? 0
@@ -179,13 +176,9 @@ struct GroupStatusLights: View {
 extension NSImage {
     /// The menu draws SF Symbols as template images, which removes a color that
     /// `foregroundStyle` sets. A palette configuration makes the color part of the image.
-    /// - Parameter detailColor: The color of the symbol's second layer, such as the number
-    ///   in a filled square. With one palette color, that layer has the same color as the
-    ///   first layer and is invisible.
-    static func symbol(_ name: String, color: NSColor, detailColor: NSColor? = nil) -> NSImage? {
-        let colors = detailColor.map { [$0, color] } ?? [color]
-        return NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: colors))
+    static func symbol(_ name: String, color: NSColor) -> NSImage? {
+        NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(NSImage.SymbolConfiguration(paletteColors: [color]))
     }
 }
 
@@ -208,17 +201,13 @@ extension ContainerAction {
 }
 
 extension ContainerCondition {
-    /// Blending the system colors with gray gives muted colors that suit a menu.
-    private static let saturationReduction = 0.3
-
     var color: NSColor {
-        let base: NSColor = switch self {
+        switch self {
         case .normal: .systemGreen
         case .warning: .systemYellow
         case .critical: .systemRed
-        case .inactive: .systemGray
+        case .inactive: .secondaryLabelColor
         }
-        return base.blended(withFraction: Self.saturationReduction, of: .systemGray) ?? base
     }
 
     var accessibilityLabel: LocalizedStringResource {
