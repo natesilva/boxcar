@@ -1,0 +1,156 @@
+import AppKit
+import SwiftUI
+
+/// Shows log lines in one `NSTextView`. SwiftUI's text selection works only inside one
+/// `Text` view, so a list of `Text` views cannot select more than one line.
+struct LogTextView: NSViewRepresentable {
+    let lines: [LogLine]
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSTextView.scrollableTextView()
+        scrollView.drawsBackground = false
+        guard let textView = scrollView.documentView as? NSTextView else {
+            return scrollView
+        }
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.drawsBackground = false
+        textView.textContainerInset = NSSize(width: 16, height: 16)
+        textView.textLayoutManager?.delegate = context.coordinator.layoutDelegate
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = scrollView.documentView as? NSTextView else {
+            return
+        }
+        context.coordinator.show(lines, in: textView, scrollView: scrollView)
+    }
+
+    /// Keeps track of the lines that the text view shows, so that an update changes only
+    /// the lines that were added or removed. Replacing all text of a log with 10,000 lines
+    /// for each batch of new lines would make the window slow.
+    @MainActor
+    final class Coordinator {
+        private static let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular),
+            .foregroundColor: NSColor.labelColor,
+        ]
+
+        private static let noticeAttributes: [NSAttributedString.Key: Any] = {
+            let style = NSMutableParagraphStyle()
+            style.alignment = .center
+            style.paragraphSpacingBefore = 4
+            style.paragraphSpacing = 4
+            return [
+                .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold),
+                .foregroundColor: NSColor.secondaryLabelColor,
+                .paragraphStyle: style,
+                .logNotice: true,
+            ]
+        }()
+
+        /// The text layout manager keeps only a weak reference to its delegate.
+        let layoutDelegate = NoticeLayoutDelegate()
+
+        /// The ID of the first line in the text view. The IDs of the lines are consecutive.
+        private var firstID = 0
+        /// The length in UTF-16 units of each line in the text view, including its line break.
+        private var lengths: [Int] = []
+
+        func show(_ lines: [LogLine], in textView: NSTextView, scrollView: NSScrollView) {
+            guard let storage = textView.textStorage else {
+                return
+            }
+            let followsEnd = isAtEnd(of: scrollView)
+
+            storage.beginEditing()
+            if let first = lines.first, canReuse(for: lines, firstID: first.id) {
+                let removedCount = first.id - firstID
+                storage.deleteCharacters(in: NSRange(location: 0, length: lengths.prefix(removedCount).reduce(0, +)))
+                lengths.removeFirst(removedCount)
+                firstID = first.id
+                append(lines[lengths.count...], to: storage)
+            } else {
+                storage.deleteCharacters(in: NSRange(location: 0, length: storage.length))
+                lengths = []
+                firstID = lines.first?.id ?? 0
+                append(lines[...], to: storage)
+            }
+            storage.endEditing()
+
+            if followsEnd {
+                textView.scrollToEndOfDocument(nil)
+            }
+        }
+
+        /// The text view can keep its text if the lines continue the lines that it shows:
+        /// the new first line is one of them, or the line directly after them.
+        private func canReuse(for lines: [LogLine], firstID newFirstID: Int) -> Bool {
+            guard newFirstID >= firstID, newFirstID - firstID <= lengths.count else {
+                return false
+            }
+            return lines.count >= lengths.count - (newFirstID - firstID)
+        }
+
+        private func append(_ newLines: ArraySlice<LogLine>, to storage: NSTextStorage) {
+            let text = NSMutableAttributedString()
+            for line in newLines {
+                let lineText = NSAttributedString(string: line.text + "\n", attributes: line.isNotice ? Self.noticeAttributes : Self.attributes)
+                lengths.append(lineText.length)
+                text.append(lineText)
+            }
+            storage.append(text)
+        }
+
+        private func isAtEnd(of scrollView: NSScrollView) -> Bool {
+            guard let documentView = scrollView.documentView else {
+                return true
+            }
+            return scrollView.contentView.bounds.maxY >= documentView.bounds.maxY - 8
+        }
+    }
+}
+
+extension NSAttributedString.Key {
+    /// Marks a paragraph that the window added itself. The text view draws it as a band.
+    static let logNotice = NSAttributedString.Key("logNotice")
+}
+
+final class NoticeLayoutDelegate: NSObject, NSTextLayoutManagerDelegate {
+    func textLayoutManager(_ textLayoutManager: NSTextLayoutManager, textLayoutFragmentFor location: any NSTextLocation, in textElement: NSTextElement) -> NSTextLayoutFragment {
+        if let paragraph = textElement as? NSTextParagraph,
+           paragraph.attributedString.length > 0,
+           paragraph.attributedString.attribute(.logNotice, at: 0, effectiveRange: nil) != nil {
+            return NoticeLayoutFragment(textElement: textElement, range: textElement.elementRange)
+        }
+        return NSTextLayoutFragment(textElement: textElement, range: textElement.elementRange)
+    }
+}
+
+/// Draws a gray band behind a notice paragraph. The band is as wide as the text container.
+final class NoticeLayoutFragment: NSTextLayoutFragment {
+    private var bandBounds: CGRect {
+        let width = textLayoutManager?.textContainer?.size.width ?? layoutFragmentFrame.width
+        return CGRect(x: -layoutFragmentFrame.origin.x, y: 0, width: width, height: layoutFragmentFrame.height)
+    }
+
+    /// TextKit clips the drawing of a fragment to its rendering surface, so the surface must include the band.
+    override var renderingSurfaceBounds: CGRect {
+        super.renderingSurfaceBounds.union(bandBounds)
+    }
+
+    override func draw(at point: CGPoint, in context: CGContext) {
+        context.saveGState()
+        NSAppearance.currentDrawing().performAsCurrentDrawingAppearance {
+            context.setFillColor(NSColor.quaternaryLabelColor.cgColor)
+        }
+        context.fill(bandBounds.offsetBy(dx: point.x, dy: point.y))
+        context.restoreGState()
+        super.draw(at: point, in: context)
+    }
+}

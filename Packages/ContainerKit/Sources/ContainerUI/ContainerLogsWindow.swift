@@ -32,6 +32,9 @@ enum StreamEnd: Equatable {
 struct LogLine: Identifiable {
     let id: Int
     let text: String
+    /// A line that the window adds itself, such as the separator of two streams.
+    /// The container did not write it.
+    var isNotice = false
 }
 
 struct ContainerLogView: View {
@@ -51,19 +54,8 @@ struct ContainerLogView: View {
     private static let resumeDelay: Duration = .seconds(1)
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(lines) { line in
-                    Text(line.text)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .font(.system(.body, design: .monospaced))
-            .textSelection(.enabled)
-            .padding()
-        }
-        .defaultScrollAnchor(.bottom)
-        .safeAreaInset(edge: .bottom) {
+        VStack(spacing: 0) {
+            LogTextView(lines: lines)
             if let streamEnd {
                 HStack {
                     switch streamEnd {
@@ -148,7 +140,7 @@ struct ContainerLogView: View {
     /// Separates the lines of an earlier stream from the lines of a later one.
     private func appendNotice() {
         let text = String(localized: "Log stream resumed", bundle: #bundle, comment: "Line in the log window that separates the lines before a restart of the log stream from the lines after it.")
-        lines.append(LogLine(id: nextLineID, text: text))
+        lines.append(LogLine(id: nextLineID, text: text, isNotice: true))
         nextLineID += 1
     }
 
