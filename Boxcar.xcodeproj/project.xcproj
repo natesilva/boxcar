@@ -17,20 +17,20 @@
     },
   ],
   "files": [
-    { "kind": "folder", "path": "MyApp", "target-membership": [ "MyApp" ] },
+    { "kind": "folder", "path": "Boxcar", "target-membership": [ "Boxcar" ] },
     {
       "kind": "group",
       "name": "Products",
       "children": [
-        { "path": "<PRODUCTS>/MyApp.app", "id": "000000000000000000000120", "type": "wrapper.application", "index": false },
+        { "path": "<PRODUCTS>/Boxcar.app", "id": "000000000000000000000120", "type": "wrapper.application", "index": false },
       ],
     },
   ],
   "targets": [
     {
-      "name": "MyApp",
+      "name": "Boxcar",
       "id": "000000000000000100000000",
-      "product": "Products/MyApp.app",
+      "product": "Products/Boxcar.app",
       "product-type": "application",
       "build-phases": [
         "compile-sources",
@@ -72,7 +72,7 @@
         "LD_RUNPATH_SEARCH_PATHS": "@executable_path/../Frameworks",
         "LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]": "@executable_path/../Frameworks",
         "MARKETING_VERSION": "1.0",
-        "PRODUCT_BUNDLE_IDENTIFIER": "devplaceholder.$(PROJECT_UNIQUE_VALUE:identifier).$(PRODUCT_NAME:rfc1034identifier)",
+        "PRODUCT_BUNDLE_IDENTIFIER": "com.natesilva.Boxcar",
         "PRODUCT_NAME": "$(TARGET_NAME)",
         "REGISTER_APP_GROUPS": "YES",
         "SDKROOT": "macosx",

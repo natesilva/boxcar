@@ -4,7 +4,7 @@ import ContainerUI
 import DockerRuntime
 import SwiftUI
 
-@main struct MyApp: App {
+@main struct BoxcarApp: App {
     @State private var store: ContainerStore
 
     init() {
@@ -17,7 +17,7 @@ import SwiftUI
     }
 
     var body: some Scene {
-        MenuBarExtra("MyApp", systemImage: "rectangle.stack") {
+        MenuBarExtra("Boxcar", systemImage: "rectangle.stack") {
             ShellMenu {
                 ContainerMenuContent(store: store)
             }

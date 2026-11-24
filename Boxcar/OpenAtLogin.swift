@@ -10,7 +10,7 @@ import SwiftUI
 final class OpenAtLogin {
     private let service = SMAppService.mainApp
     private var status: SMAppService.Status
-    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "MyApp", category: "OpenAtLogin")
+    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Boxcar", category: "OpenAtLogin")
 
     init() {
         status = service.status

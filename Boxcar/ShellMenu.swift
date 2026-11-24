@@ -8,11 +8,11 @@ struct ShellMenu<Content: View>: View {
         content
         Divider()
         OpenAtLoginToggle()
-        Button("About MyApp") {
+        Button("About Boxcar") {
             NSApp.activate()
             NSApp.orderFrontStandardAboutPanel()
         }
-        Button("Quit MyApp") {
+        Button("Quit Boxcar") {
             NSApp.terminate(nil)
         }
         .keyboardShortcut("q")
