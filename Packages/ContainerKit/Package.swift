@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "ContainerKit",
     defaultLocalization: "en",
-    platforms: [.macOS(.v26)],
+    platforms: [.macOS(.v15)],
     products: [
         .library(name: "ContainerCore", targets: ["ContainerCore"]),
         .library(name: "ContainerUI", targets: ["ContainerUI"]),
