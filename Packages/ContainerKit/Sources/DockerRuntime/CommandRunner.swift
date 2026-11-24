@@ -31,7 +31,7 @@ public enum CommandError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .failed(let message): message
-        case .timedOut: "The command did not respond in time."
+        case .timedOut: String(localized: "The command did not respond in time.", bundle: #bundle, comment: "Error shown when a docker command takes too long.")
         }
     }
 }
@@ -114,7 +114,8 @@ public struct SubprocessCommandRunner: CommandRunner {
 
     private static func failure(_ status: TerminationStatus, standardError: String) -> CommandError {
         let firstLine = standardError.split(whereSeparator: \.isNewline).first.map(String.init)
-        return .failed(message: firstLine ?? "The command failed with status \(status).")
+        let statusDescription = String(describing: status)
+        return .failed(message: firstLine ?? String(localized: "The command failed with status \(statusDescription).", bundle: #bundle, comment: "Error shown when a docker command fails without an error message. The value is the exit status."))
     }
 }
 

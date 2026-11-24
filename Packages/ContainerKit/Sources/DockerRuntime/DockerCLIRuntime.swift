@@ -6,7 +6,7 @@ public enum DockerError: LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .cliNotFound: "The docker CLI was not found."
+        case .cliNotFound: String(localized: "The docker CLI was not found.", bundle: #bundle, comment: "Error shown when the app cannot find the docker executable.")
         }
     }
 }

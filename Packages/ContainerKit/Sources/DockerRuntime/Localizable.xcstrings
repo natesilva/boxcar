@@ -1,0 +1,15 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "The command did not respond in time." : {
+      "comment" : "Error shown when a docker command takes too long."
+    },
+    "The command failed with status %@." : {
+      "comment" : "Error shown when a docker command fails without an error message. The value is the exit status."
+    },
+    "The docker CLI was not found." : {
+      "comment" : "Error shown when the app cannot find the docker executable."
+    }
+  },
+  "version" : "1.0"
+}

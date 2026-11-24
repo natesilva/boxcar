@@ -13,7 +13,7 @@ public struct ContainerLogsWindow: Scene {
     }
 
     public var body: some Scene {
-        WindowGroup("Logs", for: ContainerRef.self) { $ref in
+        WindowGroup(LocalizedStringResource("Logs", bundle: #bundle, comment: "Name of the container log window group."), for: ContainerRef.self) { $ref in
             if let ref {
                 ContainerLogView(store: store, ref: ref)
             }
@@ -21,6 +21,11 @@ public struct ContainerLogsWindow: Scene {
         .defaultSize(width: 900, height: 540)
         .restorationBehavior(.disabled)
     }
+}
+
+enum StreamEnd: Equatable {
+    case finished
+    case failed(String)
 }
 
 struct LogLine: Identifiable {
@@ -35,7 +40,7 @@ struct ContainerLogView: View {
     @State private var lines: [LogLine] = []
     @State private var nextLineID = 0
     @State private var connection = 0
-    @State private var endMessage: String?
+    @State private var streamEnd: StreamEnd?
 
     /// The window keeps at most this many lines, so a noisy container
     /// cannot make the window use unlimited memory.
@@ -55,11 +60,16 @@ struct ContainerLogView: View {
         }
         .defaultScrollAnchor(.bottom)
         .safeAreaInset(edge: .bottom) {
-            if let endMessage {
+            if let streamEnd {
                 HStack {
-                    Text(endMessage)
+                    switch streamEnd {
+                    case .finished:
+                        Text("The log stream ended.", bundle: #bundle, comment: "Shown at the bottom of the log window when the log stream stops.")
+                    case .failed(let message):
+                        Text(message)
+                    }
                     Spacer()
-                    Button("Reconnect") {
+                    Button(LocalizedStringResource("Reconnect", bundle: #bundle, comment: "Button that restarts the log stream.")) {
                         connection += 1
                     }
                 }
@@ -67,13 +77,13 @@ struct ContainerLogView: View {
                 .background(.bar)
             }
         }
-        .navigationTitle(title)
+        .navigationTitle(Text("\(containerName) (\(ref.source.name))", bundle: #bundle, comment: "Log window title. The first value is the container name. The second value is the Docker context."))
         .toolbar {
-            Button("Copy All", systemImage: "doc.on.doc") {
+            Button(LocalizedStringResource("Copy All", bundle: #bundle, comment: "Toolbar button that copies all log lines."), systemImage: "doc.on.doc") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(lines.map(\.text).joined(separator: "\n"), forType: .string)
             }
-            Button("Clear", systemImage: "trash") {
+            Button(LocalizedStringResource("Clear", bundle: #bundle, comment: "Toolbar button that removes all log lines from the window."), systemImage: "trash") {
                 lines.removeAll()
             }
         }
@@ -82,14 +92,13 @@ struct ContainerLogView: View {
         }
     }
 
-    private var title: String {
-        let name = store.container(for: ref)?.name ?? ref.containerID
-        return "\(name) (\(ref.source.name))"
+    private var containerName: String {
+        store.container(for: ref)?.name ?? ref.containerID
     }
 
     private func follow() async {
         lines.removeAll()
-        endMessage = nil
+        streamEnd = nil
         do {
             // Adding each line in its own update makes the scroll view lay out and
             // scroll once per line, so the initial tail would visibly scroll past.
@@ -98,10 +107,10 @@ struct ContainerLogView: View {
             for try await batch in batches {
                 append(batch)
             }
-            endMessage = String(localized: "The log stream ended.")
+            streamEnd = .finished
         } catch is CancellationError {
         } catch {
-            endMessage = error.localizedDescription
+            streamEnd = .failed(error.localizedDescription)
         }
     }
 

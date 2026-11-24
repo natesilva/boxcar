@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "ContainerKit",
+    defaultLocalization: "en",
     platforms: [.macOS(.v26)],
     products: [
         .library(name: "ContainerCore", targets: ["ContainerCore"]),

@@ -1,0 +1,53 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ (%@)" : {
+      "comment" : "Log window title. The first value is the container name. The second value is the Docker context.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ (%2$@)"
+          }
+        }
+      }
+    },
+    "Clear" : {
+      "comment" : "Toolbar button that removes all log lines from the window."
+    },
+    "Copy All" : {
+      "comment" : "Toolbar button that copies all log lines."
+    },
+    "Loading…" : {
+      "comment" : "Shown in the menu until the container list has loaded."
+    },
+    "Logs" : {
+      "comment" : "Name of the container log window group."
+    },
+    "No containers" : {
+      "comment" : "Shown under a Docker context that has no containers."
+    },
+    "Reconnect" : {
+      "comment" : "Button that restarts the log stream."
+    },
+    "Refresh" : {
+      "comment" : "Menu item that reloads the container list."
+    },
+    "Restart" : {
+      "comment" : "Menu item that restarts a container."
+    },
+    "Start" : {
+      "comment" : "Menu item that starts a container."
+    },
+    "Stop" : {
+      "comment" : "Menu item that stops a container."
+    },
+    "The log stream ended." : {
+      "comment" : "Shown at the bottom of the log window when the log stream stops."
+    },
+    "View Logs…" : {
+      "comment" : "Menu item that opens the log window of a container."
+    }
+  },
+  "version" : "1.0"
+}

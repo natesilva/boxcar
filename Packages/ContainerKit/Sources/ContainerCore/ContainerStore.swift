@@ -1,6 +1,6 @@
 import Observation
 
-public struct ContainerSection: Identifiable, Sendable {
+public struct ContainerSection: Identifiable, Equatable, Sendable {
     public let source: ContainerSource
     public let containers: [ContainerInfo]
     public let errorMessage: String?

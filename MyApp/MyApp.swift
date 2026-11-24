@@ -8,11 +8,11 @@ import SwiftUI
     @State private var store: ContainerStore
 
     init() {
-        let store = ContainerStore(runtimes: [DockerCLIRuntime()])
-        _store = State(initialValue: store)
-        Task { await store.start() }
+        let containerStore = ContainerStore(runtimes: [DockerCLIRuntime()])
+        store = containerStore
+        Task { await containerStore.start() }
         _ = NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { store.shutdown() }
+            MainActor.assumeIsolated { containerStore.shutdown() }
         }
     }
 
