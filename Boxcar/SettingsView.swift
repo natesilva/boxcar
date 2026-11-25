@@ -11,6 +11,8 @@ struct SettingsView: View {
     @AppStorage(DockerSettings.customPathKey) private var customPath = ""
     @State private var updater = Updater.shared
 
+    private static let releasesURL = URL(string: "https://github.com/natesilva/boxcar/releases")
+
     private var locator: DockerCLILocator {
         let selection: DockerCLISelection = source == .automatic ? .automatic : .custom(path: customPath)
         return DockerCLILocator(selection: { selection })
@@ -38,9 +40,17 @@ struct SettingsView: View {
             }
             Section {
                 OpenAtLoginToggle()
+            }
+            Section {
                 Toggle("Automatically check for updates", isOn: $updater.automaticallyChecksForUpdates)
-                Button("Check for Updates…", action: updater.checkForUpdates)
-                    .disabled(!updater.canCheckForUpdates)
+                HStack {
+                    Button("Check for Updates…", action: updater.checkForUpdates)
+                        .disabled(!updater.canCheckForUpdates)
+                    Spacer()
+                    if let releasesURL = Self.releasesURL {
+                        Link("What’s New", destination: releasesURL)
+                    }
+                }
             }
         }
         .formStyle(.grouped)
