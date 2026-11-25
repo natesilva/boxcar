@@ -16,7 +16,7 @@ struct ShellMenu<Content: View>: View {
         .keyboardShortcut(",")
         Button("About Boxcar") {
             NSApp.activate()
-            NSApp.orderFrontStandardAboutPanel()
+            NSApp.orderFrontStandardAboutPanel(options: [.credits: AboutCredits.attributedString])
         }
         Button("Quit Boxcar") {
             NSApp.terminate(nil)
