@@ -8,6 +8,7 @@ struct SettingsView: View {
 
     @AppStorage(DockerSettings.sourceKey) private var source = DockerCommandSource.automatic
     @AppStorage(DockerSettings.customPathKey) private var customPath = ""
+    @State private var updater = Updater.shared
 
     private var locator: DockerCLILocator {
         let selection: DockerCLISelection = source == .automatic ? .automatic : .custom(path: customPath)
@@ -36,6 +37,7 @@ struct SettingsView: View {
             }
             Section {
                 OpenAtLoginToggle()
+                Toggle("Automatically check for updates", isOn: $updater.automaticallyChecksForUpdates)
             }
         }
         .formStyle(.grouped)
