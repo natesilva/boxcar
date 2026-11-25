@@ -223,7 +223,10 @@ public final class ContainerStore {
             return
         }
         let section = await Self.section(for: source, in: runtime)
-        if let index = sections.firstIndex(where: { $0.id == source.id }) {
+        // Writing an element of `sections` always notifies observers, so an unchanged
+        // section must not be written. A needless notification rebuilds the open menu
+        // and closes its submenus.
+        if let index = sections.firstIndex(where: { $0.id == source.id }), sections[index] != section {
             sections[index] = section
         }
     }

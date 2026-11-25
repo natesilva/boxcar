@@ -1,5 +1,6 @@
 import ContainerCore
 import Foundation
+import Observation
 import Synchronization
 import Testing
 
@@ -14,6 +15,23 @@ struct ContainerStoreTests {
         #expect(store.sections.map(\.source.name) == ["colima", "vmpal"])
         #expect(store.sections[0].containers.map(\.name) == ["web", "db", "worker"])
         #expect(store.sections[1].containers.map(\.name) == ["cache"])
+    }
+
+    @Test func sectionRefreshWithUnchangedContainersDoesNotNotifyObservers() async throws {
+        let store = ContainerStore(runtimes: [InMemoryRuntime.sample()])
+        await store.refresh()
+        let worker = try #require(store.sections[0].containers.first { $0.name == "worker" })
+        await store.perform(.start, on: worker)
+        let notified = Mutex(false)
+        withObservationTracking {
+            _ = store.sections
+        } onChange: {
+            notified.withLock { $0 = true }
+        }
+
+        await store.perform(.start, on: worker)
+
+        #expect(!notified.withLock { $0 })
     }
 
     @Test func performUpdatesStateAfterRefresh() async throws {
