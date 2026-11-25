@@ -39,6 +39,8 @@ struct SettingsView: View {
             Section {
                 OpenAtLoginToggle()
                 Toggle("Automatically check for updates", isOn: $updater.automaticallyChecksForUpdates)
+                Button("Check for Updates…", action: updater.checkForUpdates)
+                    .disabled(!updater.canCheckForUpdates)
             }
         }
         .formStyle(.grouped)

@@ -6,8 +6,6 @@ struct ShellMenu<Content: View>: View {
 
     @Environment(\.openSettings) private var openSettings
 
-    private let updater = Updater.shared
-
     var body: some View {
         content
         Divider()
@@ -16,8 +14,6 @@ struct ShellMenu<Content: View>: View {
             NSApp.activate()
         }
         .keyboardShortcut(",")
-        Button("Check for Updates…", action: updater.checkForUpdates)
-            .disabled(!updater.canCheckForUpdates)
         Button("About Boxcar") {
             NSApp.activate()
             NSApp.orderFrontStandardAboutPanel()
