@@ -17,6 +17,7 @@ public struct ContainerLogsWindow: Scene {
             if let ref {
                 ContainerLogView(store: store, ref: ref)
                     .showsAppInDockWhileVisible()
+                    .bringsWindowToFront()
             }
         }
         .defaultSize(width: 900, height: 540)

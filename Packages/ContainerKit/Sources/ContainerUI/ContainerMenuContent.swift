@@ -153,9 +153,9 @@ struct ContainerMenuItem: View {
             Text(container.status)
             Divider()
             Button(LocalizedStringResource("View Logs…", bundle: #bundle, comment: "Menu item that opens the log window of a container."), systemImage: "doc.text") {
-                // A menu bar app is not active by default, so new windows would open behind other apps.
-                NSApp.activate()
                 openWindow(value: container.ref)
+                // An existing window for this container is not new, so it needs the activation here.
+                NSApp.activate()
             }
             .labelStyle(.titleAndIcon)
             if !container.ports.isEmpty {

@@ -1,5 +1,6 @@
 import AppKit
 import ContainerCore
+import ContainerUI
 import DockerRuntime
 import SwiftUI
 
@@ -44,6 +45,7 @@ struct SettingsView: View {
         .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
         .scrollDisabled(true)
+        .bringsWindowToFront()
         .onChange(of: source, refreshContainers)
     }
 

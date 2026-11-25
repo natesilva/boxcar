@@ -12,8 +12,8 @@ struct ShellMenu<Content: View>: View {
         content
         Divider()
         Button("Settings…") {
-            NSApp.activate()
             openSettings()
+            NSApp.activate()
         }
         .keyboardShortcut(",")
         Button("Check for Updates…", action: updater.checkForUpdates)
