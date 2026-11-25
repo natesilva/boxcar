@@ -23,8 +23,21 @@
     },
   ],
   "files": [
-    { "kind": "folder", "path": "Boxcar", "target-membership": [ "Boxcar" ] },
     {
+      "kind": "folder",
+      "path": "Boxcar",
+      "target-membership": [
+        "Boxcar",
+      ],
+      "membership-exceptions": [
+        {
+          "target": "Boxcar",
+          "exclusions": [
+            "Info.plist",
+          ],
+        },
+      ],
+    }, {
       "kind": "group",
       "name": "Products",
       "children": [
