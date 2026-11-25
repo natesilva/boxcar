@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Boxcar</title>
+        <item>
+            <title>1.2</title>
+            <pubDate>Tue, 24 Nov 2026 18:41:17 -0800</pubDate>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>1.2</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/natesilva/boxcar/releases/download/v1.2/Boxcar-1.2.zip" length="4864846" type="application/octet-stream" sparkle:edSignature="57YdpYkSvcTtDKo97Te+NQXXOMT5EH2ZGCCQyeja8f87lmx6jWIGz43hfAgoshSKySqN1cxoE++GytcOZXk3Aw=="/>
+        </item>
+    </channel>
+</rss>
