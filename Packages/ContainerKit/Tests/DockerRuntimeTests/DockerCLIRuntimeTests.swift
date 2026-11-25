@@ -7,9 +7,9 @@ import Testing
 struct DockerCLIRuntimeTests {
     private let docker = URL(filePath: "/test/bin/docker")
 
-    private func makeRuntime(runner: RecordingRunner, cliInstalled: Bool = true) -> DockerCLIRuntime {
+    private func makeRuntime(runner: RecordingRunner, cliInstalled: Bool = true, entryExists: @escaping @Sendable (String) -> Bool = { _ in true }) -> DockerCLIRuntime {
         let locator = DockerCLILocator(searchDirectories: [URL(filePath: "/test/bin")], isExecutable: { _ in cliInstalled })
-        return DockerCLIRuntime(locator: locator, runner: runner, now: { Date(timeIntervalSince1970: 1000) })
+        return DockerCLIRuntime(locator: locator, runner: runner, now: { Date(timeIntervalSince1970: 1000) }, entryExists: entryExists)
     }
 
     @Test func sourcesListsContexts() async throws {
@@ -19,6 +19,34 @@ struct DockerCLIRuntimeTests {
 
         #expect(sources == [ContainerSource(runtimeID: "docker", name: "colima"), ContainerSource(runtimeID: "docker", name: "vmpal")])
         #expect(runner.calls == [RecordingRunner.Call(executable: docker, arguments: ["context", "ls", "--format", "json"])])
+    }
+
+    @Test func sourcesOmitsDefaultContextWhenItsSocketPathIsEmpty() async throws {
+        let runner = RecordingRunner(output: #"{"Name":"default","DockerEndpoint":"unix:///var/run/docker.sock"}"# + "\n" + #"{"Name":"vmpal","DockerEndpoint":"unix:///Users/test/.vmpal/docker.sock"}"#)
+
+        let sources = try await makeRuntime(runner: runner, entryExists: { $0 != "/var/run/docker.sock" }).sources()
+
+        #expect(sources == [ContainerSource(runtimeID: "docker", name: "vmpal")])
+    }
+
+    @Test func defaultEntryCheckKeepsDefaultContextWithDanglingSymlinkButNotWithMissingPath() async throws {
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let dangling = directory.appending(path: "docker.sock")
+        try FileManager.default.createSymbolicLink(atPath: dangling.path, withDestinationPath: "missing.sock")
+        let absent = directory.appending(path: "absent.sock")
+        let output = #"{"Name":"default","DockerEndpoint":"unix://\#(dangling.path)"}"# + "\n" + #"{"Name":"other","DockerEndpoint":"unix://\#(absent.path)"}"#
+        let locator = DockerCLILocator(searchDirectories: [URL(filePath: "/test/bin")], isExecutable: { _ in true })
+
+        let sources = try await DockerCLIRuntime(locator: locator, runner: RecordingRunner(output: output)).sources()
+
+        #expect(sources.map(\.name) == ["default", "other"])
+
+        let absentOutput = #"{"Name":"default","DockerEndpoint":"unix://\#(absent.path)"}"#
+        let withoutDefault = try await DockerCLIRuntime(locator: locator, runner: RecordingRunner(output: absentOutput)).sources()
+
+        #expect(withoutDefault.isEmpty)
     }
 
     @Test func containersUseContextFlag() async throws {

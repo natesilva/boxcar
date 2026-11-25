@@ -32,6 +32,9 @@ public struct DockerCLIRuntime: ContainerRuntime {
     private let locator: DockerCLILocator
     private let runner: any CommandRunner
     private let now: @Sendable () -> Date
+    /// Reports whether anything exists at a path. The default reads the attributes of a symlink
+    /// itself, so a symlink with a missing target counts as existing.
+    private let entryExists: @Sendable (String) -> Bool
 
     private static let listTimeout: Duration = .seconds(15)
     /// `docker stop` waits up to 10 seconds before it kills the container, so actions need a longer timeout.
@@ -42,17 +45,20 @@ public struct DockerCLIRuntime: ContainerRuntime {
     public init(
         locator: DockerCLILocator = DockerCLILocator(),
         runner: any CommandRunner = SubprocessCommandRunner(),
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        entryExists: @escaping @Sendable (String) -> Bool = { (try? FileManager.default.attributesOfItem(atPath: $0)) != nil }
     ) {
         self.locator = locator
         self.runner = runner
         self.now = now
+        self.entryExists = entryExists
     }
 
     public func sources() async throws -> [ContainerSource] {
         let output = try await docker(["context", "ls", "--format", "json"], timeout: Self.listTimeout)
         let contexts = try DockerOutput.contexts(from: output)
-        return DockerOutput.uniqueContexts(contexts, resolveSymlinks: DockerOutput.resolveSymlinks)
+        let uniqueContexts = DockerOutput.uniqueContexts(contexts, resolveSymlinks: DockerOutput.resolveSymlinks)
+        return DockerOutput.removingUnusedDefaultContext(uniqueContexts, entryExists: entryExists)
             .map { ContainerSource(runtimeID: id, name: $0.name) }
     }
 
