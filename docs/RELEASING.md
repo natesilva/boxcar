@@ -8,6 +8,7 @@
 - A `notarytool` Keychain profile named `boxcar-notary`. Check with `xcrun notarytool history --keychain-profile boxcar-notary`.
 - The Sparkle EdDSA private key in the login Keychain. The public key is `SUPublicEDKey` in `Boxcar/Info.plist`. Keep an offline backup. If the private key is lost, installed apps cannot accept further updates.
 - `gh` authenticated for `natesilva/boxcar` (`gh auth status`).
+- Push access to the Homebrew tap repository `natesilva/homebrew-boxcar` over SSH.
 - The Sparkle tools. Xcode downloads them with the Sparkle package. Find `generate_appcast` with:
 
   ```sh
@@ -26,7 +27,7 @@
 
 1. Raise `CURRENT_PROJECT_VERSION` (Sparkle compares this number, and it must increase on every release). Set `MARKETING_VERSION` to the new version. Both are build settings of the Boxcar target.
 2. Commit and push to `main`. The release tag is created on the remote default branch.
-3. Run `scripts/release.sh`. To run the steps by hand, continue with steps 4 to 11.
+3. Run `scripts/release.sh`. To run the steps by hand, continue with steps 4 to 12.
 4. Set variables:
 
    ```sh
@@ -89,8 +90,22 @@
     git -C "$BUILD/pages" push --set-upstream origin gh-pages
     ```
 
+12. Update the Homebrew cask in the tap `natesilva/homebrew-boxcar`. The cask file is `Casks/boxcar.rb`. Set `version` to the new version and `sha256` to the checksum of the release archive:
+
+    ```sh
+    SHA256="$(shasum -a 256 "$BUILD/Boxcar-$VERSION.zip" | awk '{ print $1 }')"
+    git clone git@github.com:natesilva/homebrew-boxcar.git "$BUILD/tap"
+    sed -i '' -E \
+      -e "s/^( *version \").*(\")$/\1$VERSION\2/" \
+      -e "s/^( *sha256 \").*(\")$/\1$SHA256\2/" \
+      "$BUILD/tap/Casks/boxcar.rb"
+    git -C "$BUILD/tap" commit -am "feat(cask): update boxcar to $VERSION"
+    git -C "$BUILD/tap" push
+    ```
+
 ## Verification
 
 - `curl -s https://natesilva.github.io/boxcar/appcast.xml` returns the feed with an `<item>` for the new version. Pages can take a few minutes to deploy.
 - The item has `sparkle:version` equal to `CURRENT_PROJECT_VERSION` and a `sparkle:edSignature` attribute.
+- `brew update && brew audit --cask --online natesilva/boxcar/boxcar` reports no problems, and `brew info --cask natesilva/boxcar/boxcar` shows the new version.
 - Install an older build that includes Sparkle, then choose "Check for Updates…" from the menu. The update dialog shows the new version.

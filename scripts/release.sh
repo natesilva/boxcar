@@ -12,6 +12,8 @@ ZIP="$BUILD/Boxcar-$VERSION.zip"
 REPO="${REPO:-natesilva/boxcar}"
 TAG="v$VERSION"
 PAGES="$BUILD/pages"
+TAP_REPO="${TAP_REPO:-natesilva/homebrew-boxcar}"
+TAP="$BUILD/tap"
 APPCAST_STAGING="$BUILD/appcast"
 GENERATE_APPCAST="${GENERATE_APPCAST:-$(find "$HOME/Library/Developer/Xcode/DerivedData" \
     -path '*/artifacts/sparkle/Sparkle/bin/generate_appcast' -print -quit 2>/dev/null)}"
@@ -66,5 +68,14 @@ gh release create "$TAG" "$ZIP" --repo "$REPO" --title "Boxcar $VERSION" --gener
 git -C "$PAGES" add appcast.xml
 git -C "$PAGES" commit --quiet -m "chore(appcast): add $VERSION"
 git -C "$PAGES" push --quiet --set-upstream origin gh-pages
+
+SHA256="$(shasum -a 256 "$ZIP" | awk '{ print $1 }')"
+git clone --quiet "git@github.com:$TAP_REPO.git" "$TAP"
+sed -i '' -E \
+    -e "s/^( *version \").*(\")$/\1$VERSION\2/" \
+    -e "s/^( *sha256 \").*(\")$/\1$SHA256\2/" \
+    "$TAP/Casks/boxcar.rb"
+git -C "$TAP" commit --quiet -am "feat(cask): update boxcar to $VERSION"
+git -C "$TAP" push --quiet
 
 echo "Released $TAG: $ZIP"
