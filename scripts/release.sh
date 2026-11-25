@@ -9,6 +9,17 @@ cd "$ROOT"
 VERSION="$(xcodebuild -project Boxcar.xcodeproj -scheme Boxcar -showBuildSettings 2>/dev/null \
     | awk '/ MARKETING_VERSION = / { print $3; exit }')"
 ZIP="$BUILD/Boxcar-$VERSION.zip"
+REPO="${REPO:-natesilva/boxcar}"
+TAG="v$VERSION"
+PAGES="$BUILD/pages"
+APPCAST_STAGING="$BUILD/appcast"
+GENERATE_APPCAST="${GENERATE_APPCAST:-$(find "$HOME/Library/Developer/Xcode/DerivedData" \
+    -path '*/artifacts/sparkle/Sparkle/bin/generate_appcast' -print -quit 2>/dev/null)}"
+
+if [[ -z "$GENERATE_APPCAST" || ! -x "$GENERATE_APPCAST" ]]; then
+    echo "generate_appcast not found. Build the project in Xcode once, or set GENERATE_APPCAST." >&2
+    exit 1
+fi
 
 rm -rf "$BUILD"
 mkdir -p "$BUILD"
@@ -31,4 +42,29 @@ xcrun stapler validate "$BUILD/export/Boxcar.app"
 spctl --assess --type execute --verbose "$BUILD/export/Boxcar.app"
 
 ditto -c -k --keepParent "$BUILD/export/Boxcar.app" "$ZIP"
-echo "$ZIP"
+
+if git clone --quiet --branch gh-pages --single-branch "git@github.com:$REPO.git" "$PAGES" 2>/dev/null; then
+    :
+else
+    git init --quiet "$PAGES"
+    git -C "$PAGES" checkout --quiet --orphan gh-pages
+    git -C "$PAGES" remote add origin "git@github.com:$REPO.git"
+fi
+
+mkdir -p "$APPCAST_STAGING"
+cp "$ZIP" "$APPCAST_STAGING/"
+if [[ -f "$PAGES/appcast.xml" ]]; then
+    cp "$PAGES/appcast.xml" "$APPCAST_STAGING/"
+fi
+"$GENERATE_APPCAST" \
+    --download-url-prefix "https://github.com/$REPO/releases/download/$TAG/" \
+    "$APPCAST_STAGING"
+cp "$APPCAST_STAGING/appcast.xml" "$PAGES/appcast.xml"
+
+gh release create "$TAG" "$ZIP" --repo "$REPO" --title "Boxcar $VERSION" --generate-notes
+
+git -C "$PAGES" add appcast.xml
+git -C "$PAGES" commit --quiet -m "chore(appcast): add $VERSION"
+git -C "$PAGES" push --quiet --set-upstream origin gh-pages
+
+echo "Released $TAG: $ZIP"
