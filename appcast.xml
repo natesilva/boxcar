@@ -3,6 +3,14 @@
     <channel>
         <title>Boxcar</title>
         <item>
+            <title>1.5</title>
+            <pubDate>Tue, 24 Nov 2026 20:42:46 -0800</pubDate>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>1.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/natesilva/boxcar/releases/download/v1.5/Boxcar-1.5.zip" length="4876400" type="application/octet-stream" sparkle:edSignature="+3pSRSvCJkuck5FMB6AJNcRnfeGepL8us/6wpXvhOE4TEKcSTWI8iKj0KTW+Hd6RZ54UIP5qb1dFxR+TKuzwCA=="/>
+        </item>
+        <item>
             <title>1.4</title>
             <pubDate>Tue, 24 Nov 2026 19:50:43 -0800</pubDate>
             <sparkle:version>5</sparkle:version>
@@ -17,14 +25,6 @@
             <sparkle:shortVersionString>1.3</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/natesilva/boxcar/releases/download/v1.3/Boxcar-1.3.zip" length="4870484" type="application/octet-stream" sparkle:edSignature="HpbwjLcp+1kEd21Q3da4ob1yamUu1GTAvokx7quNbHZbxZoQSVTlwkBA4/Z8/SdnkavfB7+3Uyzk1AwJkeR4Cg=="/>
-        </item>
-        <item>
-            <title>1.2</title>
-            <pubDate>Tue, 24 Nov 2026 18:41:17 -0800</pubDate>
-            <sparkle:version>3</sparkle:version>
-            <sparkle:shortVersionString>1.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/natesilva/boxcar/releases/download/v1.2/Boxcar-1.2.zip" length="4864846" type="application/octet-stream" sparkle:edSignature="57YdpYkSvcTtDKo97Te+NQXXOMT5EH2ZGCCQyeja8f87lmx6jWIGz43hfAgoshSKySqN1cxoE++GytcOZXk3Aw=="/>
         </item>
     </channel>
 </rss>
