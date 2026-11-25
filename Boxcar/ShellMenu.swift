@@ -4,10 +4,16 @@ import SwiftUI
 struct ShellMenu<Content: View>: View {
     @ViewBuilder let content: Content
 
+    @Environment(\.openSettings) private var openSettings
+
     var body: some View {
         content
         Divider()
-        OpenAtLoginToggle()
+        Button("Settings…") {
+            NSApp.activate()
+            openSettings()
+        }
+        .keyboardShortcut(",")
         Button("About Boxcar") {
             NSApp.activate()
             NSApp.orderFrontStandardAboutPanel()

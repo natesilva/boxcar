@@ -48,7 +48,7 @@ struct OpenAtLoginToggle: View {
     @State private var openAtLogin = OpenAtLogin()
 
     var body: some View {
-        Toggle("Open at Login", isOn: $openAtLogin.isEnabled)
+        Toggle("Launch Boxcar at login", isOn: $openAtLogin.isEnabled)
             .onAppear { openAtLogin.refresh() }
     }
 }

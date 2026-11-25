@@ -18,6 +18,40 @@ struct DockerCLILocatorTests {
         #expect(locator.locate() == nil)
     }
 
+    @Test func customSelectionUsesOnlyTheGivenPath() {
+        let locator = DockerCLILocator(
+            searchDirectories: [URL(filePath: "/a")],
+            isExecutable: { $0.path == "/custom/docker" || $0.path == "/a/docker" },
+            selection: { .custom(path: "/custom/docker") }
+        )
+
+        #expect(locator.locate()?.path == "/custom/docker")
+    }
+
+    @Test func customSelectionDoesNotFallBackToSearch() {
+        let locator = DockerCLILocator(
+            searchDirectories: [URL(filePath: "/a")],
+            isExecutable: { $0.path == "/a/docker" },
+            selection: { .custom(path: "/missing/docker") }
+        )
+
+        #expect(locator.locate() == nil)
+    }
+
+    @Test func customSelectionWithEmptyPathFindsNothing() {
+        let locator = DockerCLILocator(
+            searchDirectories: [URL(filePath: "/a")],
+            isExecutable: { _ in true },
+            selection: { .custom(path: "  ") }
+        )
+
+        #expect(locator.locate() == nil)
+    }
+
+    @Test func customPathExpandsTilde() {
+        #expect(DockerCLILocator.customURL(for: "~/bin/docker")?.path == NSHomeDirectory() + "/bin/docker")
+    }
+
     @Test func defaultDirectoriesListWellKnownBeforePathWithoutDuplicates() {
         let directories = DockerCLILocator.defaultSearchDirectories(
             environment: ["PATH": "/usr/bin:/opt/homebrew/bin:/custom/bin"],

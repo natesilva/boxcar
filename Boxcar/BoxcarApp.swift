@@ -8,7 +8,8 @@ import SwiftUI
     @State private var store: ContainerStore
 
     init() {
-        let containerStore = ContainerStore(runtimes: [DockerCLIRuntime()])
+        let locator = DockerCLILocator(selection: { DockerSettings.selection() })
+        let containerStore = ContainerStore(runtimes: [DockerCLIRuntime(locator: locator)])
         store = containerStore
         Task { await containerStore.start() }
         _ = NotificationCenter.default.addObserver(forName: NSMenu.didBeginTrackingNotification, object: nil, queue: .main) { _ in
@@ -28,5 +29,9 @@ import SwiftUI
         .menuBarExtraStyle(.menu)
 
         ContainerLogsWindow(store: store)
+
+        Settings {
+            SettingsView(store: store)
+        }
     }
 }
