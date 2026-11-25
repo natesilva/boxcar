@@ -1,12 +1,18 @@
 # Boxcar
 
-> A macOS menu-bar app to view and manage Docker containers.
-
 **Boxcar** is a small Mac-native menu bar app that shows you the current status of your Docker containers and lets you stop and start them and tail their logs.
 
 Boxcar works with any Docker runtime. It’s especially useful alongside [Docker Desktop](https://www.docker.com/products/docker-desktop/), which does not show running containers in its menu bar icon, or with alternative runtimes like [Colima](https://colima.run) and [VMPal](https://vmpal.com) that don’t have a menu bar widget.
 
 <img src="assets/screenshots/screenshot-1.webp" alt="Boxcar in action" width="700">
+
+## Install
+
+Download [the latest release](https://github.com/natesilva/boxcar/releases/latest), or use Homebrew:
+
+```shell
+brew install --cask natesilva/tap/boxcar
+```
 
 ## It’s not fancy
 
