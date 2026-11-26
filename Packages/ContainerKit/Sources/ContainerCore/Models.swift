@@ -35,12 +35,15 @@ public enum ContainerAction: Sendable, CaseIterable {
 public struct ContainerSource: Identifiable, Hashable, Sendable, Codable {
     public let runtimeID: String
     public let name: String
+    /// The host name of the engine, if the engine runs on another machine.
+    public let remoteHost: String?
 
     public var id: String { "\(runtimeID)/\(name)" }
 
-    public init(runtimeID: String, name: String) {
+    public init(runtimeID: String, name: String, remoteHost: String? = nil) {
         self.runtimeID = runtimeID
         self.name = name
+        self.remoteHost = remoteHost
     }
 }
 
@@ -81,23 +84,21 @@ public struct GroupMembership: Hashable, Sendable {
 
 /// A TCP port of a container that the engine publishes on the host.
 public struct PublishedPort: Identifiable, Hashable, Sendable {
+    public let host: String
     public let hostPort: Int
 
     public var id: Int { hostPort }
 
-    /// The address of the port on the Mac, as a person types it.
-    public var address: String { "localhost:\(hostPort)" }
-
-    public var url: URL? {
-        var components = URLComponents()
-        components.scheme = "http"
-        components.host = "localhost"
-        components.port = hostPort
-        return components.url
+    /// The address that reaches the port from the Mac, as a person types it.
+    public var address: String {
+        host.contains(":") ? "[\(host)]:\(hostPort)" : "\(host):\(hostPort)"
     }
 
-    public init(hostPort: Int) {
+    public var url: URL? { URL(string: "http://\(address)") }
+
+    public init(hostPort: Int, host: String = "localhost") {
         self.hostPort = hostPort
+        self.host = host
     }
 }
 

@@ -22,6 +22,20 @@ enum DockerOutput {
             }
             return url.path
         }
+
+        private static let loopbackHosts: Set<String> = ["localhost", "127.0.0.1", "::1", "0.0.0.0"]
+
+        /// The host of an `ssh://` or `tcp://` endpoint on another machine. An SSH host can
+        /// be an alias from the SSH configuration, which only SSH can resolve.
+        var remoteHost: String? {
+            guard let endpoint, let url = URL(string: endpoint),
+                  let scheme = url.scheme?.lowercased(), scheme == "ssh" || scheme == "tcp",
+                  let host = url.host(percentEncoded: false), !Self.loopbackHosts.contains(host.lowercased())
+            else {
+                return nil
+            }
+            return host
+        }
     }
 
     struct Container: Decodable, Equatable {
@@ -69,11 +83,13 @@ enum DockerOutput {
         /// `Ports` is a comma-separated list of mappings, such as `0.0.0.0:5173->5173/tcp, [::]:5173->5173/tcp`.
         /// Engines list a port once for each host address, and a range as `8000-8002->8000-8002/tcp`.
         /// Ports that are exposed but not published have no `->`. The browser can open only TCP ports.
-        var publishedPorts: [PublishedPort] {
+        /// A remote machine does not accept connections from the Mac on its loopback addresses.
+        func publishedPorts(remoteHost: String? = nil) -> [PublishedPort] {
             let hostPorts = (ports ?? "").split(separator: ",").flatMap { entry -> [Int] in
                 let mapping = entry.trimmingCharacters(in: .whitespaces)
                 guard mapping.hasSuffix("/tcp"),
                       let arrow = mapping.range(of: "->"),
+                      remoteHost == nil || !Self.isLoopbackMapping(mapping),
                       let portText = mapping[..<arrow.lowerBound].split(separator: ":").last
                 else {
                     return []
@@ -85,7 +101,11 @@ enum DockerOutput {
                 default: return []
                 }
             }
-            return Set(hostPorts).sorted().map { PublishedPort(hostPort: $0) }
+            return Set(hostPorts).sorted().map { PublishedPort(hostPort: $0, host: remoteHost ?? "localhost") }
+        }
+
+        private static func isLoopbackMapping(_ mapping: String) -> Bool {
+            ["127.", "::1:", "[::1]:"].contains { mapping.hasPrefix($0) }
         }
 
         /// `Names` is a comma-separated list. The first name is the container's own name.
@@ -180,7 +200,7 @@ extension DockerOutput.Container {
             status: status,
             group: composeMembership,
             diagnostics: diagnostics,
-            ports: publishedPorts
+            ports: publishedPorts(remoteHost: source.remoteHost)
         )
     }
 }

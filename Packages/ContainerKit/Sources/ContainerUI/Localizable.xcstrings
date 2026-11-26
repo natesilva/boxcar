@@ -12,6 +12,17 @@
         }
       }
     },
+    "%@ on %@" : {
+      "comment" : "Disabled menu item that shows the directory of a Compose project on another machine. The first value is the path. The second value is the host name.",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ on %2$@"
+          }
+        }
+      }
+    },
     "Clear" : {
       "comment" : "Toolbar button that removes all log lines from the window."
     },

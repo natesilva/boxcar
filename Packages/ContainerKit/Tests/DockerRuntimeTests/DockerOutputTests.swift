@@ -46,7 +46,35 @@ struct DockerOutputTests {
 
         let container = try #require(try DockerOutput.containers(from: output).first)
 
-        #expect(container.publishedPorts.map(\.hostPort) == [5173, 8000, 8001, 8002])
+        #expect(container.publishedPorts().map(\.hostPort) == [5173, 8000, 8001, 8002])
+    }
+
+    @Test func remotePortsUseTheRemoteHostAndSkipLoopbackMappings() throws {
+        let ports = "0.0.0.0:8080->80/tcp, [::]:8080->80/tcp, 127.0.0.1:5432->5432/tcp, [::1]:6379->6379/tcp, ::1:6380->6380/tcp, 192.0.2.7:9000->9000/tcp"
+        let output = #"{"ID":"1","Image":"web","Names":"web","State":"running","Status":"Up","Ports":"\#(ports)"}"#
+        let container = try #require(try DockerOutput.containers(from: output).first)
+        let source = ContainerSource(runtimeID: "docker", name: "build", remoteHost: "build.example.com")
+
+        #expect(container.containerInfo(in: source).ports.map(\.address) == ["build.example.com:8080", "build.example.com:9000"])
+        #expect(container.publishedPorts().map(\.hostPort) == [5432, 6379, 6380, 8080, 9000])
+    }
+
+    @Test(arguments: [
+        ("ssh://deploy@build.example.com:2222", "build.example.com"),
+        ("ssh://buildbox", "buildbox"),
+        ("tcp://192.0.2.10:2376", "192.0.2.10"),
+        ("tcp://[2001:db8::1]:2376", "2001:db8::1"),
+        ("TCP://192.0.2.10:2376", "192.0.2.10"),
+        ("SSH://deploy@BuildBox", "BuildBox"),
+        ("tcp://localhost:2375", nil),
+        ("tcp://LOCALHOST:2375", nil),
+        ("tcp://127.0.0.1:2375", nil),
+        ("tcp://[::1]:2375", nil),
+        ("unix:///var/run/docker.sock", nil),
+        ("npipe:////./pipe/docker_engine", nil),
+    ])
+    func contextEndpointDeterminesTheRemoteHost(endpoint: String, host: String?) {
+        #expect(DockerOutput.Context(name: "x", endpoint: endpoint).remoteHost == host)
     }
 
     @Test func containerWithoutPortsHasNoPublishedPorts() throws {
@@ -54,7 +82,7 @@ struct DockerOutputTests {
 
         let container = try #require(try DockerOutput.containers(from: output).first)
 
-        #expect(container.publishedPorts.isEmpty)
+        #expect(container.publishedPorts().isEmpty)
     }
 
     @Test func composeWorkingDirectoryIsPartOfGroupMembership() throws {

@@ -21,6 +21,14 @@ struct DockerCLIRuntimeTests {
         #expect(runner.calls == [RecordingRunner.Call(executable: docker, arguments: ["context", "ls", "--format", "json"])])
     }
 
+    @Test func sourcesCarryTheHostOfARemoteContext() async throws {
+        let runner = RecordingRunner(output: #"{"Name":"build","DockerEndpoint":"ssh://deploy@build.example.com"}"#)
+
+        let sources = try await makeRuntime(runner: runner).sources()
+
+        #expect(sources.map(\.remoteHost) == ["build.example.com"])
+    }
+
     @Test func sourcesRejectsACLIWithAnotherOutputFormat() async {
         let podmanOutput = """
             [

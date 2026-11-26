@@ -71,6 +71,17 @@ struct ContainerGroupTests {
         #expect(port.url?.absoluteString == "http://localhost:5173")
     }
 
+    @Test(arguments: [
+        ("build.example.com", "build.example.com:5173"),
+        ("2001:db8::1", "[2001:db8::1]:5173"),
+    ])
+    func publishedPortOfARemoteHostHasItsAddressAndURL(host: String, address: String) {
+        let port = PublishedPort(hostPort: 5173, host: host)
+
+        #expect(port.address == address)
+        #expect(port.url?.absoluteString == "http://\(address)")
+    }
+
     @Test func groupActionUpdatesAllMembers() async throws {
         let runtime = InMemoryRuntime(
             id: "memory",

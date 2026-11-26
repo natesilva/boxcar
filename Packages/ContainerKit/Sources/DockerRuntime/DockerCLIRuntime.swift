@@ -68,7 +68,7 @@ public struct DockerCLIRuntime: ContainerRuntime {
         }
         let uniqueContexts = DockerOutput.uniqueContexts(contexts, resolveSymlinks: DockerOutput.resolveSymlinks)
         return DockerOutput.removingUnusedDefaultContext(uniqueContexts, entryExists: entryExists)
-            .map { ContainerSource(runtimeID: id, name: $0.name) }
+            .map { ContainerSource(runtimeID: id, name: $0.name, remoteHost: $0.remoteHost) }
     }
 
     public func containers(in source: ContainerSource) async throws -> [ContainerInfo] {

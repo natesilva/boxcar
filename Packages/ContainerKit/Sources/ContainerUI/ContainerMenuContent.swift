@@ -68,11 +68,7 @@ struct ContainerGroupMenu: View {
             }
             Divider()
             if let workingDirectory = group.workingDirectory {
-                Button(workingDirectory.abbreviatedPath, systemImage: "folder") {
-                    NSWorkspace.shared.open(workingDirectory)
-                }
-                .labelStyle(.titleAndIcon)
-                .help(Text("Show in Finder", bundle: #bundle, comment: "Tooltip of the menu item that shows the directory of a Compose project."))
+                WorkingDirectoryMenuItem(directory: workingDirectory, remoteHost: group.ref.source.remoteHost)
                 Divider()
             }
             ForEach(ContainerAction.allCases, id: \.self) { action in
@@ -92,6 +88,27 @@ struct ContainerGroupMenu: View {
         // The menu keeps the image width of an item that it updates in place, so
         // a new identity makes it build a new item when the squares change.
         .id(group.conditionCounts)
+    }
+}
+
+/// Opens the directory of a Compose project in Finder. The Mac cannot open a directory
+/// on a remote host, so for that the item only shows where the directory is.
+struct WorkingDirectoryMenuItem: View {
+    let directory: URL
+    let remoteHost: String?
+
+    var body: some View {
+        if let remoteHost {
+            Button(LocalizedStringResource("\(directory.path) on \(remoteHost)", bundle: #bundle, comment: "Disabled menu item that shows the directory of a Compose project on another machine. The first value is the path. The second value is the host name."), systemImage: "folder") {}
+                .labelStyle(.titleAndIcon)
+                .disabled(true)
+        } else {
+            Button(directory.abbreviatedPath, systemImage: "folder") {
+                NSWorkspace.shared.open(directory)
+            }
+            .labelStyle(.titleAndIcon)
+            .help(Text("Show in Finder", bundle: #bundle, comment: "Tooltip of the menu item that shows the directory of a Compose project."))
+        }
     }
 }
 
