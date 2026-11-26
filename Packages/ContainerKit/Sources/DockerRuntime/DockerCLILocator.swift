@@ -50,10 +50,17 @@ public struct DockerCLILocator: Sendable {
 
     public static func defaultSearchDirectories(
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        home: URL = FileManager.default.homeDirectoryForCurrentUser
+        home: URL = FileManager.default.homeDirectoryForCurrentUser,
+        userName: String = NSUserName()
     ) -> [URL] {
-        let wellKnown = ["/opt/homebrew/bin", "/usr/local/bin"].map { URL(filePath: $0) }
+        let installers = ["/opt/homebrew/bin", "/usr/local/bin"].map { URL(filePath: $0) }
             + [".orbstack/bin", ".docker/bin", ".rd/bin"].map { home.appending(path: $0) }
+        let macPorts = [URL(filePath: "/opt/local/bin")]
+        let nix = [home.appending(path: ".nix-profile/bin"), home.appending(path: ".local/state/nix/profile/bin")]
+            + ["/etc/profiles/per-user/\(userName)/bin", "/run/current-system/sw/bin", "/nix/var/nix/profiles/default/bin"].map { URL(filePath: $0) }
+        // asdf is not listed, because its shims work only if the `asdf` command is in `PATH`.
+        let mise = [home.appending(path: ".local/share/mise/shims")]
+        let wellKnown = installers + macPorts + nix + mise
         let fromPath = (environment["PATH"] ?? "")
             .split(separator: ":")
             .map { URL(filePath: String($0)) }

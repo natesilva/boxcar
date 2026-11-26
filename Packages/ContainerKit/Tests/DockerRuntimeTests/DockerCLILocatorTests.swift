@@ -55,7 +55,8 @@ struct DockerCLILocatorTests {
     @Test func defaultDirectoriesListWellKnownBeforePathWithoutDuplicates() {
         let directories = DockerCLILocator.defaultSearchDirectories(
             environment: ["PATH": "/usr/bin:/opt/homebrew/bin:/custom/bin"],
-            home: URL(filePath: "/Users/test")
+            home: URL(filePath: "/Users/test"),
+            userName: "test"
         )
 
         #expect(directories.map(\.path) == [
@@ -64,6 +65,13 @@ struct DockerCLILocatorTests {
             "/Users/test/.orbstack/bin",
             "/Users/test/.docker/bin",
             "/Users/test/.rd/bin",
+            "/opt/local/bin",
+            "/Users/test/.nix-profile/bin",
+            "/Users/test/.local/state/nix/profile/bin",
+            "/etc/profiles/per-user/test/bin",
+            "/run/current-system/sw/bin",
+            "/nix/var/nix/profiles/default/bin",
+            "/Users/test/.local/share/mise/shims",
             "/usr/bin",
             "/custom/bin",
         ])
