@@ -1,4 +1,4 @@
-import DockerRuntime
+@testable import DockerRuntime
 import Foundation
 import Testing
 
@@ -36,6 +36,16 @@ struct DockerCLILocatorTests {
         )
 
         #expect(locator.locate() == nil)
+    }
+
+    @Test func standaloneComposeSearchIgnoresTheCustomSelection() {
+        let locator = DockerCLILocator(
+            searchDirectories: [URL(filePath: "/a")],
+            isExecutable: { $0.path == "/custom/docker" || $0.path == "/a/docker-compose" },
+            selection: { .custom(path: "/custom/docker") }
+        )
+
+        #expect(locator.locateStandaloneCompose()?.path == "/a/docker-compose")
     }
 
     @Test func customSelectionWithEmptyPathFindsNothing() {

@@ -4,12 +4,14 @@ import Foundation
 public enum DockerError: LocalizedError, Equatable {
     case cliNotFound
     case unsupportedCLI
+    case composeNotFound
     case engineNotRunning
 
     public var errorDescription: String? {
         switch self {
         case .cliNotFound: String(localized: "The docker CLI was not found.", bundle: #bundle, comment: "Error shown when the app cannot find the docker executable.")
         case .unsupportedCLI: String(localized: "A Docker CLI is required. The current command is not supported.", bundle: #bundle, comment: "Error shown when the docker command does not list its contexts in the Docker CLI's format, for example because it is Podman.")
+        case .composeNotFound: String(localized: "Docker Compose was not found.", bundle: #bundle, comment: "Error shown when an action on a Compose project fails because neither the Compose plugin nor docker-compose is installed.")
         case .engineNotRunning: String(localized: "Not running", bundle: #bundle, comment: "Error shown under a Docker context whose engine does not accept connections, for example because its app was quit.")
         }
     }
@@ -114,10 +116,30 @@ public struct DockerCLIRuntime: ContainerRuntime {
     /// Compose writes progress to standard error. `--progress quiet` removes it, so that
     /// the first line of standard error describes the failure.
     public func perform(_ action: ContainerAction, on group: ContainerGroupRef) async throws {
-        _ = try await docker(
-            ["--context", group.source.name, "compose", "--progress", "quiet", "--project-name", group.name, action.dockerCommand],
+        let compose = try await composeCommand()
+        _ = try await runner.run(
+            compose.executable,
+            arguments: ["--context", group.source.name] + compose.subcommand
+                + ["--progress", "quiet", "--project-name", group.name, action.dockerCommand],
             timeout: Self.groupActionTimeout
         )
+    }
+
+    /// Prefers the `docker compose` plugin. Homebrew's `docker-compose` is not a plugin
+    /// until the user changes the Docker configuration, so the runtime can also run it directly.
+    private func composeCommand() async throws -> (executable: URL, subcommand: [String]) {
+        guard let docker = locator.locate() else {
+            throw DockerError.cliNotFound
+        }
+        do {
+            _ = try await runner.run(docker, arguments: ["compose", "version"], timeout: Self.listTimeout)
+            return (docker, ["compose"])
+        } catch CommandError.failed {
+            guard let standalone = locator.locateStandaloneCompose() else {
+                throw DockerError.composeNotFound
+            }
+            return (standalone, [])
+        }
     }
 
     /// Health checks create frequent `exec_*` events, so the runtime does not ask for them.

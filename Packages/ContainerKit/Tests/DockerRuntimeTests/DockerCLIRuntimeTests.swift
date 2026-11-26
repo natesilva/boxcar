@@ -116,7 +116,33 @@ struct DockerCLIRuntimeTests {
 
         try await makeRuntime(runner: runner).perform(action, on: group)
 
-        #expect(runner.calls.map(\.arguments) == [["--context", "vmpal", "compose", "--progress", "quiet", "--project-name", "litellm", command]])
+        #expect(runner.calls == [
+            RecordingRunner.Call(executable: docker, arguments: ["compose", "version"]),
+            RecordingRunner.Call(executable: docker, arguments: ["--context", "vmpal", "compose", "--progress", "quiet", "--project-name", "litellm", command]),
+        ])
+    }
+
+    @Test func groupActionRunsStandaloneComposeWithoutThePlugin() async throws {
+        let runner = RecordingRunner.withoutComposePlugin()
+        let group = ContainerGroupRef(source: ContainerSource(runtimeID: "docker", name: "podman"), name: "litellm")
+
+        try await makeRuntime(runner: runner).perform(.stop, on: group)
+
+        #expect(runner.calls.last == RecordingRunner.Call(
+            executable: URL(filePath: "/test/bin/docker-compose"),
+            arguments: ["--context", "podman", "--progress", "quiet", "--project-name", "litellm", "stop"]
+        ))
+    }
+
+    @Test func groupActionThrowsWithoutAnyCompose() async {
+        let runner = RecordingRunner.withoutComposePlugin()
+        let locator = DockerCLILocator(searchDirectories: [URL(filePath: "/test/bin")], isExecutable: { $0.lastPathComponent == "docker" })
+        let group = ContainerGroupRef(source: ContainerSource(runtimeID: "docker", name: "podman"), name: "litellm")
+
+        await #expect(throws: DockerError.composeNotFound) {
+            try await DockerCLIRuntime(locator: locator, runner: runner).perform(.stop, on: group)
+        }
+        #expect(runner.calls.map(\.arguments) == [["compose", "version"]])
     }
 
     @Test func changesWatchStateEventsOnly() async throws {
@@ -243,7 +269,7 @@ final class RecordingRunner: CommandRunner {
         let arguments: [String]
     }
 
-    private let respond: @Sendable ([String]) -> String
+    private let respond: @Sendable ([String]) throws -> String
     private let linesFailure: CommandError?
     private let recorded = Mutex<[Call]>([])
 
@@ -252,9 +278,18 @@ final class RecordingRunner: CommandRunner {
         self.linesFailure = linesFailure
     }
 
-    init(respond: @escaping @Sendable ([String]) -> String) {
+    init(respond: @escaping @Sendable ([String]) throws -> String) {
         self.respond = respond
         self.linesFailure = nil
+    }
+
+    static func withoutComposePlugin() -> RecordingRunner {
+        RecordingRunner { arguments in
+            if arguments == ["compose", "version"] {
+                throw CommandError.failed(message: "docker: unknown command: docker compose")
+            }
+            return ""
+        }
     }
 
     var calls: [Call] {
@@ -263,17 +298,22 @@ final class RecordingRunner: CommandRunner {
 
     func run(_ executable: URL, arguments: [String], timeout: Duration) async throws -> String {
         recorded.withLock { $0.append(Call(executable: executable, arguments: arguments)) }
-        return respond(arguments)
+        return try respond(arguments)
     }
 
     func terminateRunningProcesses() {}
 
     func lines(_ executable: URL, arguments: [String], includeStandardError: Bool) -> AsyncThrowingStream<String, any Error> {
         recorded.withLock { $0.append(Call(executable: executable, arguments: arguments)) }
-        let lines = respond(arguments).split(whereSeparator: \.isNewline).map(String.init)
+        let output = Result { try respond(arguments) }
         return AsyncThrowingStream { continuation in
-            lines.forEach { continuation.yield($0) }
-            continuation.finish(throwing: linesFailure)
+            switch output {
+            case .success(let text):
+                text.split(whereSeparator: \.isNewline).forEach { continuation.yield(String($0)) }
+                continuation.finish(throwing: linesFailure)
+            case .failure(let error):
+                continuation.finish(throwing: error)
+            }
         }
     }
 }

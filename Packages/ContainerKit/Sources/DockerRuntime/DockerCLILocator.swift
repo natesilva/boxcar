@@ -30,13 +30,23 @@ public struct DockerCLILocator: Sendable {
     public func locate() -> URL? {
         switch selection() {
         case .automatic:
-            searchDirectories
-                .lazy
-                .map { $0.appending(path: "docker") }
-                .first(where: isExecutable)
+            search(for: "docker")
         case .custom(let path):
             Self.customURL(for: path).flatMap { isExecutable($0) ? $0 : nil }
         }
+    }
+
+    /// Finds the standalone `docker-compose` executable. The custom setting names only
+    /// the `docker` command, so this function always searches.
+    func locateStandaloneCompose() -> URL? {
+        search(for: "docker-compose")
+    }
+
+    private func search(for name: String) -> URL? {
+        searchDirectories
+            .lazy
+            .map { $0.appending(path: name) }
+            .first(where: isExecutable)
     }
 
     /// Expands a leading `~` and rejects an empty path.
