@@ -7,9 +7,9 @@ import Testing
 struct DockerCLIRuntimeTests {
     private let docker = URL(filePath: "/test/bin/docker")
 
-    private func makeRuntime(runner: RecordingRunner, cliInstalled: Bool = true, entryExists: @escaping @Sendable (String) -> Bool = { _ in true }) -> DockerCLIRuntime {
+    private func makeRuntime(runner: RecordingRunner, cliInstalled: Bool = true, now: @escaping @Sendable () -> Date = { Date(timeIntervalSince1970: 1000) }, entryExists: @escaping @Sendable (String) -> Bool = { _ in true }) -> DockerCLIRuntime {
         let locator = DockerCLILocator(searchDirectories: [URL(filePath: "/test/bin")], isExecutable: { _ in cliInstalled })
-        return DockerCLIRuntime(locator: locator, runner: runner, now: { Date(timeIntervalSince1970: 1000) }, entryExists: entryExists)
+        return DockerCLIRuntime(locator: locator, runner: runner, now: now, entryExists: entryExists)
     }
 
     @Test func sourcesListsContexts() async throws {
@@ -135,6 +135,30 @@ struct DockerCLIRuntimeTests {
             ["--since", "1000", "--until", "1060"],
             ["--since", "1060", "--until", "1120"],
         ])
+    }
+
+    @Test func changesSkipWindowsThatArePast() async throws {
+        let runner = RecordingRunner(output: "start")
+        let source = ContainerSource(runtimeID: "docker", name: "colima")
+        let times = Mutex([1000, 1000])
+        let runtime = makeRuntime(runner: runner, now: {
+            let time = times.withLock { $0.isEmpty ? 5000 : $0.removeFirst() }
+            return Date(timeIntervalSince1970: TimeInterval(time))
+        })
+        let start = ContinuousClock.now
+
+        var count = 0
+        for try await _ in await runtime.changes(in: source) {
+            count += 1
+            if count == 3 { break }
+        }
+
+        let windows = runner.calls.prefix(2).map { Array($0.arguments.suffix(4)) }
+        #expect(windows == [
+            ["--since", "1000", "--until", "1060"],
+            ["--since", "5000", "--until", "5060"],
+        ])
+        #expect(ContinuousClock.now - start >= .seconds(1))
     }
 
     @Test func logsFollowTailWithTimestamps() async throws {

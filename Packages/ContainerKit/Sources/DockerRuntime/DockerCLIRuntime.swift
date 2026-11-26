@@ -118,8 +118,13 @@ public struct DockerCLIRuntime: ContainerRuntime {
     /// `docker events` runs in back-to-back windows of this length. Each process
     /// exits by itself at the end of its window, so no process stays behind
     /// for long after the app quits or crashes. Each window starts where the
-    /// previous one ended, so no events are lost between windows.
+    /// previous one ended, so no events are lost between windows. If a whole
+    /// window is already in the past, for example after the Mac slept, the runtime
+    /// skips to the current time and yields one change in place of the skipped events.
     static let eventWindowSeconds = 60
+
+    /// A process can exit before its window ends. This interval prevents a tight loop of processes.
+    static let minimumEventWindowInterval: Duration = .seconds(1)
 
     public func changes(in source: ContainerSource) async -> AsyncThrowingStream<Void, any Error> {
         guard let executable = locator.locate() else {
@@ -134,12 +139,19 @@ public struct DockerCLIRuntime: ContainerRuntime {
                 var since = Int(now().timeIntervalSince1970)
                 do {
                     while !Task.isCancelled {
+                        let current = Int(now().timeIntervalSince1970)
+                        if since + Self.eventWindowSeconds < current {
+                            since = current
+                            continuation.yield()
+                        }
                         let until = since + Self.eventWindowSeconds
                         let arguments = baseArguments + ["--since", String(since), "--until", String(until)]
+                        let earliestNextStart = ContinuousClock.now + Self.minimumEventWindowInterval
                         for try await _ in runner.lines(executable, arguments: arguments) {
                             continuation.yield()
                         }
                         since = until
+                        try await Task.sleep(until: earliestNextStart, clock: .continuous)
                     }
                     continuation.finish()
                 } catch {
