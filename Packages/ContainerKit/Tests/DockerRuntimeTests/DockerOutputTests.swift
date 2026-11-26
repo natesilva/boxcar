@@ -115,6 +115,15 @@ struct DockerOutputTests {
         #expect(container.containerInfo(in: source).state == .unknown)
     }
 
+    @Test func lineThatDoesNotDecodeIsSkipped() throws {
+        let valid = #"{"ID":"1","Image":"x","Names":"web","State":"running","Status":""}"#
+        let output = "WARNING: not json\n\(valid)\n{\"ID\":\"2\"}"
+
+        let containers = try DockerOutput.containers(from: output)
+
+        #expect(containers.map(\.names) == ["web"])
+    }
+
     @Test func invalidOutputThrows() {
         #expect(throws: (any Error).self) {
             try DockerOutput.containers(from: "not json")

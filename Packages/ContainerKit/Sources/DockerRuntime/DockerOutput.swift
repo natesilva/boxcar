@@ -1,8 +1,11 @@
 import ContainerCore
 import Foundation
+import OSLog
 
 /// Decodes the output of `docker … --format json`, which prints one JSON object per line.
 enum DockerOutput {
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Boxcar", category: "DockerOutput")
+
     struct Context: Decodable, Equatable {
         let name: String
         let endpoint: String?
@@ -144,12 +147,26 @@ enum DockerOutput {
         return Dictionary(inspections.map { ($0.id, $0.diagnostics) }) { first, _ in first }
     }
 
+    /// Skips a line that does not decode, so that one unexpected line does not hide a whole
+    /// context. Throws if no line decodes, because the output then has an unknown format.
     private static func decodeLines<T: Decodable>(_ output: String) throws -> [T] {
         let decoder = JSONDecoder()
-        return try output
-            .split(whereSeparator: \.isNewline)
-            .filter { !$0.allSatisfy(\.isWhitespace) }
-            .map { try decoder.decode(T.self, from: Data($0.utf8)) }
+        var values: [T] = []
+        var failures: [any Error] = []
+        for line in output.split(whereSeparator: \.isNewline) where !line.allSatisfy(\.isWhitespace) {
+            do {
+                values.append(try decoder.decode(T.self, from: Data(line.utf8)))
+            } catch {
+                failures.append(error)
+            }
+        }
+        if values.isEmpty, let failure = failures.first {
+            throw failure
+        }
+        for failure in failures {
+            logger.error("Skipped a line of docker output: \(String(describing: failure), privacy: .public)")
+        }
+        return values
     }
 }
 
