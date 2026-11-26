@@ -81,6 +81,8 @@ struct SettingsView: View {
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         panel.showsHiddenFiles = true
+        // A symlink such as Homebrew's `docker` stays valid after an upgrade, but its target does not.
+        panel.resolvesAliases = false
         guard panel.runModal() == .OK, let url = panel.url else {
             return
         }
