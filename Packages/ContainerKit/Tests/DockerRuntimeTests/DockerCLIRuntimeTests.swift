@@ -101,7 +101,7 @@ struct DockerCLIRuntimeTests {
 
         try await makeRuntime(runner: runner).perform(action, on: group)
 
-        #expect(runner.calls.map(\.arguments) == [["--context", "vmpal", "compose", "--project-name", "litellm", command]])
+        #expect(runner.calls.map(\.arguments) == [["--context", "vmpal", "compose", "--progress", "quiet", "--project-name", "litellm", command]])
     }
 
     @Test func changesWatchStateEventsOnly() async throws {

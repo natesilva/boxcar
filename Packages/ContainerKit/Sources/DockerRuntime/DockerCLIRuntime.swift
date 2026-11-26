@@ -104,9 +104,11 @@ public struct DockerCLIRuntime: ContainerRuntime {
 
     /// Compose finds a project's containers by their labels, so the compose file is not needed.
     /// Compose also starts and stops the services in the order of their `depends_on` settings.
+    /// Compose writes progress to standard error. `--progress quiet` removes it, so that
+    /// the first line of standard error describes the failure.
     public func perform(_ action: ContainerAction, on group: ContainerGroupRef) async throws {
         _ = try await docker(
-            ["--context", group.source.name, "compose", "--project-name", group.name, action.dockerCommand],
+            ["--context", group.source.name, "compose", "--progress", "quiet", "--project-name", group.name, action.dockerCommand],
             timeout: Self.groupActionTimeout
         )
     }
