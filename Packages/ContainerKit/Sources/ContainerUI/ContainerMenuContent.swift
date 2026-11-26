@@ -97,20 +97,25 @@ struct ContainerGroupMenu: View {
 
 /// Shows an open action and a copy action for each published port. A menu item has
 /// only one action, so a container with many ports gets a submenu for each port.
+/// A container can publish thousands of ports, so only the first ones are listed.
 struct PortMenuItems: View {
     let ports: [PublishedPort]
 
     private static let maxInlinePorts = 4
+    private static let maxListedPorts = 20
 
     var body: some View {
         if ports.count > Self.maxInlinePorts {
-            ForEach(ports) { port in
+            ForEach(ports.prefix(Self.maxListedPorts)) { port in
                 Menu {
                     actions(for: port)
                 } label: {
                     Label(port.address, systemImage: "network")
                 }
                 .labelStyle(.titleAndIcon)
+            }
+            if ports.count > Self.maxListedPorts {
+                Text("More ports not shown: \(ports.count - Self.maxListedPorts)", bundle: #bundle, comment: "Shown after the list of published ports of a container that has too many to list. The value is the number of ports that are not listed.")
             }
         } else {
             ForEach(ports) { port in
