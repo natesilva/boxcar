@@ -32,6 +32,32 @@ struct SubprocessCommandRunnerTests {
         #expect(lines == ["one", "two"])
     }
 
+    @Test func linesSplitOnlyAtLineFeeds() async throws {
+        var lines: [String] = []
+        for try await line in runner.lines(URL(filePath: "/bin/sh"), arguments: ["-c", #"printf '10%%\r20%%\r\nlong\342\200\250line\n'"#]) {
+            lines.append(line)
+        }
+
+        #expect(lines == ["10%\r20%", "long\u{2028}line"])
+    }
+
+    @Test func linesYieldsALongLine() async throws {
+        var lengths: [Int] = []
+        for try await line in runner.lines(URL(filePath: "/bin/sh"), arguments: ["-c", "head -c 1000000 /dev/zero | tr '\\0' a"]) {
+            lengths.append(line.utf8.count)
+        }
+
+        #expect(lengths == [1_000_000])
+    }
+
+    @Test func linesThrowsWhenALineIsTooLong() async {
+        let runner = SubprocessCommandRunner(maxLineBytes: 8)
+
+        await #expect(throws: CommandError.lineTooLong) {
+            for try await _ in runner.lines(URL(filePath: "/bin/echo"), arguments: ["a line that is too long"]) {}
+        }
+    }
+
     @Test func linesThrowsWhenCommandFails() async {
         await #expect(throws: CommandError.failed(message: "broken")) {
             for try await _ in runner.lines(URL(filePath: "/bin/sh"), arguments: ["-c", "echo broken >&2; exit 2"]) {}

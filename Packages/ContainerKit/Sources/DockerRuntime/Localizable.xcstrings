@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "A line of output is too long to read." : {
+      "comment" : "Error shown when the app stops reading the output of a docker command, such as a container log, because one line is too long."
+    },
     "Not running" : {
       "comment" : "Error shown under a Docker context whose engine does not accept connections, for example because its app was quit."
     },

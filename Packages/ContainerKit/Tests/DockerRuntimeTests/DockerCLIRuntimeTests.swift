@@ -161,6 +161,34 @@ struct DockerCLIRuntimeTests {
         #expect(ContinuousClock.now - start >= .seconds(1))
     }
 
+    @Test func logsReportTheCLIMessageInsteadOfYieldingIt() async {
+        let logLine = "2026-11-24T12:00:00.000000000+01:00 started"
+        let runner = RecordingRunner(output: "\(logLine)\nError response from daemon: gone", linesFailure: .failed(message: "status 1"))
+        let ref = ContainerRef(source: ContainerSource(runtimeID: "docker", name: "vmpal"), containerID: "abc")
+
+        var lines: [String] = []
+        await #expect(throws: CommandError.failed(message: "Error response from daemon: gone")) {
+            for try await line in await makeRuntime(runner: runner).logs(for: ref) {
+                lines.append(line)
+            }
+        }
+
+        #expect(lines == [logLine])
+    }
+
+    @Test(arguments: [
+        ("Error response from daemon: gone\n  ", "Error response from daemon: gone"),
+        ("WARNING: old\n2026-11-24T12:00:00.000000000Z later line", "status 1"),
+    ])
+    func logsErrorSkipsBlankAndEarlierCLIMessages(output: String, message: String) async {
+        let runner = RecordingRunner(output: output, linesFailure: .failed(message: "status 1"))
+        let ref = ContainerRef(source: ContainerSource(runtimeID: "docker", name: "vmpal"), containerID: "abc")
+
+        await #expect(throws: CommandError.failed(message: message)) {
+            for try await _ in await makeRuntime(runner: runner).logs(for: ref) {}
+        }
+    }
+
     @Test func logsFollowTailWithTimestamps() async throws {
         let runner = RecordingRunner(output: "line")
         let ref = ContainerRef(source: ContainerSource(runtimeID: "docker", name: "vmpal"), containerID: "abc")
@@ -201,14 +229,17 @@ final class RecordingRunner: CommandRunner {
     }
 
     private let respond: @Sendable ([String]) -> String
+    private let linesFailure: CommandError?
     private let recorded = Mutex<[Call]>([])
 
-    init(output: String) {
+    init(output: String, linesFailure: CommandError? = nil) {
         self.respond = { _ in output }
+        self.linesFailure = linesFailure
     }
 
     init(respond: @escaping @Sendable ([String]) -> String) {
         self.respond = respond
+        self.linesFailure = nil
     }
 
     var calls: [Call] {
@@ -227,7 +258,7 @@ final class RecordingRunner: CommandRunner {
         let lines = respond(arguments).split(whereSeparator: \.isNewline).map(String.init)
         return AsyncThrowingStream { continuation in
             lines.forEach { continuation.yield($0) }
-            continuation.finish()
+            continuation.finish(throwing: linesFailure)
         }
     }
 }

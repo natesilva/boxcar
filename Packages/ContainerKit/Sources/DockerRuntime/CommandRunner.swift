@@ -9,6 +9,7 @@ public protocol CommandRunner: Sendable {
     func run(_ executable: URL, arguments: [String], timeout: Duration) async throws -> String
 
     /// Runs the executable and yields each line of its output.
+    /// Only a line feed ends a line. A carriage return before the line feed is removed.
     /// Cancelling the iteration terminates the process.
     /// - Parameter includeStandardError: Merges standard error into the yielded lines.
     func lines(_ executable: URL, arguments: [String], includeStandardError: Bool) -> AsyncThrowingStream<String, any Error>
@@ -27,21 +28,29 @@ extension CommandRunner {
 public enum CommandError: LocalizedError, Equatable {
     case failed(message: String)
     case timedOut
+    case lineTooLong
 
     public var errorDescription: String? {
         switch self {
         case .failed(let message): message
         case .timedOut: String(localized: "The command did not respond in time.", bundle: #bundle, comment: "Error shown when a docker command takes too long.")
+        case .lineTooLong: String(localized: "A line of output is too long to read.", bundle: #bundle, comment: "Error shown when the app stops reading the output of a docker command, such as a container log, because one line is too long.")
         }
     }
 }
 
 public struct SubprocessCommandRunner: CommandRunner {
+    private static let maxOutputBytes = 16 * 1024 * 1024
     private static let maxErrorBytes = 1024 * 1024
 
+    private let maxLineBytes: Int
     private let runningProcesses = RunningProcesses()
 
-    public init() {}
+    /// - Parameter maxLineBytes: `lines` fails if one line of output reaches this length.
+    ///   The limit keeps output without line feeds from using unlimited memory.
+    public init(maxLineBytes: Int = 16 * 1024 * 1024) {
+        self.maxLineBytes = maxLineBytes
+    }
 
     public func run(_ executable: URL, arguments: [String], timeout: Duration) async throws -> String {
         try await withThrowingTaskGroup(of: String.self) { group in
@@ -62,31 +71,33 @@ public struct SubprocessCommandRunner: CommandRunner {
     }
 
     public func lines(_ executable: URL, arguments: [String], includeStandardError: Bool) -> AsyncThrowingStream<String, any Error> {
-        AsyncThrowingStream { [runningProcesses] continuation in
+        AsyncThrowingStream { [runningProcesses, maxLineBytes] continuation in
             let task = Task {
                 do {
                     let configuration = Configuration(executable: .path(FilePath(executable.path)), arguments: Arguments(arguments))
+                    let forward: @Sendable (pid_t, SubprocessOutputSequence) async throws -> Void = { pid, output in
+                        try await runningProcesses.track(pid) {
+                            let lines = output.strings(separatedBy: .unicodeScalarSequence(["\n"]), bufferingPolicy: .maxLineLength(maxLineBytes))
+                            for try await line in lines {
+                                continuation.yield(line.hasSuffix("\r") ? String(line.dropLast()) : line)
+                            }
+                        }
+                    }
                     let failure: CommandError?
                     if includeStandardError {
                         let result = try await Subprocess.run(configuration, input: .none, output: .sequence, error: .combinedWithOutput) { execution in
-                            try await runningProcesses.track(execution.processIdentifier.value) {
-                                for try await line in execution.standardOutput.strings() {
-                                    continuation.yield(line)
-                                }
-                            }
+                            try await forward(execution.processIdentifier.value, execution.standardOutput)
                         }
                         failure = result.terminationStatus.isSuccess ? nil : Self.failure(result.terminationStatus, standardError: "")
                     } else {
                         let result = try await Subprocess.run(configuration, input: .none, output: .sequence, error: .string(limit: Self.maxErrorBytes)) { execution in
-                            try await runningProcesses.track(execution.processIdentifier.value) {
-                                for try await line in execution.standardOutput.strings() {
-                                    continuation.yield(line)
-                                }
-                            }
+                            try await forward(execution.processIdentifier.value, execution.standardOutput)
                         }
                         failure = result.terminationStatus.isSuccess ? nil : Self.failure(result.terminationStatus, standardError: result.standardError)
                     }
                     continuation.finish(throwing: failure)
+                } catch let error as SubprocessError where error.code == .outputLimitExceeded {
+                    continuation.finish(throwing: CommandError.lineTooLong)
                 } catch {
                     continuation.finish(throwing: error)
                 }
@@ -103,7 +114,7 @@ public struct SubprocessCommandRunner: CommandRunner {
         let result = try await Subprocess.run(
             .path(FilePath(executable.path)),
             arguments: Arguments(arguments),
-            output: .string(limit: 16 * 1024 * 1024),
+            output: .string(limit: maxOutputBytes),
             error: .string(limit: maxErrorBytes)
         )
         guard result.terminationStatus.isSuccess else {

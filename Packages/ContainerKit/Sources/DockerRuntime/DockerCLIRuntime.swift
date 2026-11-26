@@ -167,6 +167,9 @@ public struct DockerCLIRuntime: ContainerRuntime {
     /// `docker logs --since` includes lines with exactly the given timestamp, so the
     /// stream drops its first line if that line is the last line of the earlier stream.
     /// The timestamp is the first word of the line, because the runtime asks for `--timestamps`.
+    /// A line without a timestamp is a message of the docker CLI, not a log line. The stream
+    /// does not yield it. If the command fails, the error message is the last such message
+    /// that is not blank and that no log line follows.
     /// The runtime does not compare the timestamp with the clock of the Mac, because the
     /// clock of a container VM can differ from it.
     public func logs(for ref: ContainerRef, after lastLine: String?) async -> AsyncThrowingStream<String, any Error> {
@@ -181,14 +184,19 @@ public struct DockerCLIRuntime: ContainerRuntime {
             arguments: ["--context", ref.source.name, "logs", "--follow", "--timestamps"] + sinceArguments + ["--tail", String(Self.logTailLines), ref.containerID],
             includeStandardError: true
         )
-        guard let lastLine else {
-            return lines
-        }
         return AsyncThrowingStream { continuation in
             let task = Task {
+                var cliMessage: String?
                 do {
                     var isFirstLine = true
                     for try await line in lines {
+                        guard Self.hasTimestamp(line) else {
+                            if !line.allSatisfy(\.isWhitespace) {
+                                cliMessage = line
+                            }
+                            continue
+                        }
+                        cliMessage = nil
                         defer { isFirstLine = false }
                         if isFirstLine && line == lastLine {
                             continue
@@ -196,12 +204,18 @@ public struct DockerCLIRuntime: ContainerRuntime {
                         continuation.yield(line)
                     }
                     continuation.finish()
+                } catch CommandError.failed(let message) {
+                    continuation.finish(throwing: CommandError.failed(message: cliMessage ?? message))
                 } catch {
                     continuation.finish(throwing: error)
                 }
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    private static func hasTimestamp(_ line: String) -> Bool {
+        line.prefixMatch(of: /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})/) != nil
     }
 
     public func shutdown() {
