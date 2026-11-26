@@ -1,6 +1,9 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "A Docker CLI is required. The current command is not supported." : {
+      "comment" : "Error shown when the docker command does not list its contexts in the Docker CLI's format, for example because it is Podman."
+    },
     "A line of output is too long to read." : {
       "comment" : "Error shown when the app stops reading the output of a docker command, such as a container log, because one line is too long."
     },

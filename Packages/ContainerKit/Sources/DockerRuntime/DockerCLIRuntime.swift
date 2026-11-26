@@ -3,11 +3,13 @@ import Foundation
 
 public enum DockerError: LocalizedError, Equatable {
     case cliNotFound
+    case unsupportedCLI
     case engineNotRunning
 
     public var errorDescription: String? {
         switch self {
         case .cliNotFound: String(localized: "The docker CLI was not found.", bundle: #bundle, comment: "Error shown when the app cannot find the docker executable.")
+        case .unsupportedCLI: String(localized: "A Docker CLI is required. The current command is not supported.", bundle: #bundle, comment: "Error shown when the docker command does not list its contexts in the Docker CLI's format, for example because it is Podman.")
         case .engineNotRunning: String(localized: "Not running", bundle: #bundle, comment: "Error shown under a Docker context whose engine does not accept connections, for example because its app was quit.")
         }
     }
@@ -56,7 +58,12 @@ public struct DockerCLIRuntime: ContainerRuntime {
 
     public func sources() async throws -> [ContainerSource] {
         let output = try await docker(["context", "ls", "--format", "json"], timeout: Self.listTimeout)
-        let contexts = try DockerOutput.contexts(from: output)
+        let contexts: [DockerOutput.Context]
+        do {
+            contexts = try DockerOutput.contexts(from: output)
+        } catch is DecodingError {
+            throw DockerError.unsupportedCLI
+        }
         let uniqueContexts = DockerOutput.uniqueContexts(contexts, resolveSymlinks: DockerOutput.resolveSymlinks)
         return DockerOutput.removingUnusedDefaultContext(uniqueContexts, entryExists: entryExists)
             .map { ContainerSource(runtimeID: id, name: $0.name) }

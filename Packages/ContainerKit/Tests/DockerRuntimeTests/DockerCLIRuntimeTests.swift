@@ -21,6 +21,21 @@ struct DockerCLIRuntimeTests {
         #expect(runner.calls == [RecordingRunner.Call(executable: docker, arguments: ["context", "ls", "--format", "json"])])
     }
 
+    @Test func sourcesRejectsACLIWithAnotherOutputFormat() async {
+        let podmanOutput = """
+            [
+                {
+                    "Name": "podman-machine-default",
+                    "URI": "ssh://core@127.0.0.1:49767/run/user/501/podman/podman.sock"
+                }
+            ]
+            """
+
+        await #expect(throws: DockerError.unsupportedCLI) {
+            try await makeRuntime(runner: RecordingRunner(output: podmanOutput)).sources()
+        }
+    }
+
     @Test func sourcesOmitsDefaultContextWhenItsSocketPathIsEmpty() async throws {
         let runner = RecordingRunner(output: #"{"Name":"default","DockerEndpoint":"unix:///var/run/docker.sock"}"# + "\n" + #"{"Name":"vmpal","DockerEndpoint":"unix:///Users/test/.vmpal/docker.sock"}"#)
 
