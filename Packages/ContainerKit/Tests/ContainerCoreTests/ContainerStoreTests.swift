@@ -106,6 +106,43 @@ struct ContainerStoreTests {
         #expect(store.sections[1].errorMessage == "Engine not reachable.")
     }
 
+    @Test func olderRefreshDoesNotReplaceNewerResults() async {
+        let runtime = ControlledRuntime()
+        let store = ContainerStore(runtimes: [runtime])
+        let older = Task { await store.refresh() }
+        #expect(await eventually { await runtime.pendingCount == 1 })
+        let newer = Task { await store.refresh() }
+        #expect(await eventually { await runtime.pendingCount == 2 })
+
+        await runtime.answer(at: 1, containerName: "new")
+        await newer.value
+        await runtime.answer(at: 0, containerName: "old")
+        await older.value
+
+        #expect(store.sections.flatMap(\.containers).map(\.name) == ["new"])
+    }
+
+    @Test func olderRefreshDoesNotReplaceResultsOfLaterAction() async throws {
+        let runtime = ControlledRuntime()
+        let store = ContainerStore(runtimes: [runtime])
+        let initial = Task { await store.refresh() }
+        #expect(await eventually { await runtime.pendingCount == 1 })
+        await runtime.answer(at: 0, containerName: "initial")
+        await initial.value
+        let container = try #require(store.sections.first?.containers.first)
+
+        let refresh = Task { await store.refresh() }
+        #expect(await eventually { await runtime.pendingCount == 1 })
+        let action = Task { await store.perform(.stop, on: container) }
+        #expect(await eventually { await runtime.pendingCount == 2 })
+        await runtime.answer(at: 1, containerName: "after action")
+        await action.value
+        await runtime.answer(at: 0, containerName: "before action")
+        await refresh.value
+
+        #expect(store.sections.flatMap(\.containers).map(\.name) == ["after action"])
+    }
+
     @Test func failingRuntimeBecomesErrorSection() async {
         let store = ContainerStore(runtimes: [FailingRuntime(failingSource: nil)])
 
@@ -148,6 +185,43 @@ struct FailingRuntime: ContainerRuntime {
 
     func logs(for ref: ContainerRef, after lastLine: String?) async -> AsyncThrowingStream<String, any Error> {
         AsyncThrowingStream { $0.finish(throwing: EngineError()) }
+    }
+}
+
+/// Has one source. Each `containers(in:)` call waits until the test answers it.
+actor ControlledRuntime: ContainerRuntime {
+    nonisolated let id = "controlled"
+    nonisolated let displayName = "Controlled"
+    private var pending: [CheckedContinuation<[ContainerInfo], Never>] = []
+
+    var pendingCount: Int { pending.count }
+
+    private nonisolated var source: ContainerSource {
+        ContainerSource(runtimeID: id, name: "only")
+    }
+
+    func answer(at index: Int, containerName: String) {
+        let ref = ContainerRef(source: source, containerID: "1")
+        let container = ContainerInfo(ref: ref, name: containerName, image: "alpine", state: .running, status: "Up")
+        pending.remove(at: index).resume(returning: [container])
+    }
+
+    func sources() async throws -> [ContainerSource] { [source] }
+
+    func containers(in source: ContainerSource) async throws -> [ContainerInfo] {
+        await withCheckedContinuation { pending.append($0) }
+    }
+
+    func perform(_ action: ContainerAction, on ref: ContainerRef) async throws {}
+
+    func perform(_ action: ContainerAction, on group: ContainerGroupRef) async throws {}
+
+    func changes(in source: ContainerSource) async -> AsyncThrowingStream<Void, any Error> {
+        AsyncThrowingStream { _ in }
+    }
+
+    func logs(for ref: ContainerRef, after lastLine: String?) async -> AsyncThrowingStream<String, any Error> {
+        AsyncThrowingStream { $0.finish() }
     }
 }
 

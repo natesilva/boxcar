@@ -85,6 +85,11 @@ public final class ContainerStore {
     @ObservationIgnored private var watchers: [ContainerSource: Task<Void, Never>] = [:]
     @ObservationIgnored private var refreshing: Set<ContainerSource> = []
     @ObservationIgnored private var refreshAgain: Set<ContainerSource> = []
+    /// Loads can finish in a different order than they start. Each load has a number,
+    /// so that an older load does not replace the results of a newer one.
+    @ObservationIgnored private var loadCount = 0
+    @ObservationIgnored private var sourceListLoad = 0
+    @ObservationIgnored private var sectionLoads: [ContainerSource.ID: Int] = [:]
 
     /// - Parameter retryDelay: The time to wait before the store watches a source
     ///   again after its change stream ends, for example because the engine stopped.
@@ -124,6 +129,7 @@ public final class ContainerStore {
     }
 
     public func refresh() async {
+        let load = nextLoad()
         var loadedSections: [ContainerSection] = []
         var loadedSources: [ContainerSource] = []
         for runtime in runtimes {
@@ -131,7 +137,11 @@ public final class ContainerStore {
             loadedSections += snapshot.sections
             loadedSources += snapshot.sources
         }
-        sections = loadedSections
+        guard load > sourceListLoad else {
+            return
+        }
+        sourceListLoad = load
+        sections = loadedSections.map { newest($0, from: load) }
         hasLoaded = true
         if isWatching {
             updateWatchers(for: loadedSources)
@@ -222,13 +232,32 @@ public final class ContainerStore {
         guard let runtime = runtime(for: source) else {
             return
         }
-        let section = await Self.section(for: source, in: runtime)
+        let load = nextLoad()
+        let loaded = await Self.section(for: source, in: runtime)
+        guard let index = sections.firstIndex(where: { $0.id == source.id }) else {
+            return
+        }
+        let section = newest(loaded, from: load)
         // Writing an element of `sections` always notifies observers, so an unchanged
         // section must not be written. A needless notification rebuilds the open menu
         // and closes its submenus.
-        if let index = sections.firstIndex(where: { $0.id == source.id }), sections[index] != section {
+        if sections[index] != section {
             sections[index] = section
         }
+    }
+
+    private func nextLoad() -> Int {
+        loadCount += 1
+        return loadCount
+    }
+
+    /// Returns the shown section if a newer load supplied it, and otherwise the loaded section.
+    private func newest(_ loaded: ContainerSection, from load: Int) -> ContainerSection {
+        if load < sectionLoads[loaded.id, default: 0], let shown = sections.first(where: { $0.id == loaded.id }) {
+            return shown
+        }
+        sectionLoads[loaded.id] = load
+        return loaded
     }
 
     /// Loads all sources of one runtime in parallel, so that a slow or
