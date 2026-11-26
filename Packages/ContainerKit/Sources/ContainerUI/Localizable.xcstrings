@@ -45,6 +45,9 @@
     "No containers" : {
       "comment" : "Shown under a Docker context that has no containers."
     },
+    "No container engine found" : {
+      "comment" : "Shown in the menu when there is no Docker context to list."
+    },
     "Open %@" : {
       "comment" : "Menu item that opens a published port of a container in the browser. The value is the address, such as localhost:5173."
     },

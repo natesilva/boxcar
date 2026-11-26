@@ -12,6 +12,8 @@ public struct ContainerMenuContent: View {
     public var body: some View {
         if !store.hasLoaded {
             Text("Loading…", bundle: #bundle, comment: "Shown in the menu until the container list has loaded.")
+        } else if store.sections.isEmpty {
+            Text("No container engine found", bundle: #bundle, comment: "Shown in the menu when there is no Docker context to list.")
         }
         ForEach(store.sections) { section in
             // The name of the only source is not useful as a heading.
