@@ -6,6 +6,7 @@ import SwiftUI
 
 @main struct BoxcarApp: App {
     @State private var store: ContainerStore
+    private let updater = Updater()
 
     init() {
         let locator = DockerCLILocator(selection: { DockerSettings.selection() })
@@ -31,7 +32,7 @@ import SwiftUI
         ContainerLogsWindow(store: store)
 
         Settings {
-            SettingsView(store: store)
+            SettingsView(store: store, updater: updater)
         }
     }
 }

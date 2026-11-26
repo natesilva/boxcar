@@ -1,10 +1,9 @@
 import Sparkle
 import SwiftUI
 
+/// Sparkle starts when this object is created, so the app creates it at launch.
 @MainActor @Observable
 final class Updater {
-    static let shared = Updater()
-
     private(set) var canCheckForUpdates = false
 
     private let controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
@@ -14,7 +13,7 @@ final class Updater {
         didSet { controller.updater.automaticallyChecksForUpdates = automaticallyChecksForUpdates }
     }
 
-    private init() {
+    init() {
         automaticallyChecksForUpdates = controller.updater.automaticallyChecksForUpdates
         observation = controller.updater.observe(\.canCheckForUpdates, options: [.initial, .new]) { [weak self] _, change in
             let value = change.newValue ?? false

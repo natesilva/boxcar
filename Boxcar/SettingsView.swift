@@ -6,10 +6,10 @@ import SwiftUI
 
 struct SettingsView: View {
     let store: ContainerStore
+    @Bindable var updater: Updater
 
     @AppStorage(DockerSettings.sourceKey) private var source = DockerCommandSource.automatic
     @AppStorage(DockerSettings.customPathKey) private var customPath = ""
-    @State private var updater = Updater.shared
 
     private static let releasesURL = URL(string: "https://github.com/natesilva/boxcar/releases")
 
