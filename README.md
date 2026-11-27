@@ -1,6 +1,6 @@
 # Boxcar
 
-**Boxcar** is a small Mac-native menu bar app that shows you the current status of your Docker containers and lets you stop and start them and tail their logs.
+**Boxcar** is a small Mac-native menu bar app that shows the current status of your Docker containers and lets you stop and start them and tail their logs.
 
 Boxcar works with any Docker runtime. It’s especially useful alongside [Docker Desktop](https://www.docker.com/products/docker-desktop/), which does not show running containers in its menu bar icon, or with alternative runtimes like [Colima](https://colima.run) and [VMPal](https://vmpal.com) that don’t have a menu bar widget.
 
@@ -16,7 +16,7 @@ brew install --cask natesilva/tap/boxcar
 
 ## It’s not fancy
 
-Boxcar is inspired by Classic Mac OS desk accessories. It’s meant to be small, simple, and useful. It’s _utilitarian_.
+Boxcar is inspired by Classic Mac OS desk accessories. It’s meant to be small, simple, and useful. It’s utilitarian.
 
 ## It’s useful
 
@@ -28,7 +28,7 @@ Boxcar recognizes installed Docker contexts, so if you have more than one Docker
 
 ## Yep, AI
 
-Boxcar was written by Claude, under my supervision (an experienced programmer). In part it’s meant to show that high-quality, non-slop, Mac apps are totally viable. Making a good app with Claude’s help still requires both programming knowledge and an understanding of Mac standards and conventions.
+Boxcar was written by Claude, under my supervision (an experienced programmer). Making a good app with Claude’s help requires both programming knowledge and an understanding of Mac standards and conventions.
 
 I don’t usually write Mac apps, but I’m a longtime—and picky—Mac user. That’s why this approach worked for me.
 
@@ -36,9 +36,8 @@ I don’t usually write Mac apps, but I’m a longtime—and picky—Mac user. T
 
 ## Version 1
 
-This app will probably work for you, but it’s hard for me to test every Docker runtime. macOS doesn’t support nested virtualization for macOS guests, so every Docker runtime has to be installed on my real Mac for testing.
-
-The minimum supported macOS version is macOS 15 Sequoia.
+- The minimum supported macOS version is macOS 15 Sequoia.
+- You must have the `docker` CLI command installed. [More information here](./docs/install-docker.md).
 
 If something doesn’t work, open an issue here on GitHub.
 
