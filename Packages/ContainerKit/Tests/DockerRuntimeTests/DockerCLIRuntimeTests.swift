@@ -210,6 +210,39 @@ struct DockerCLIRuntimeTests {
         #expect(ContinuousClock.now - start >= .seconds(1))
     }
 
+    @Test(arguments: [
+        (CommandError.failed(message: "error during connect: refused"), "error during connect: refused"),
+        (.failed(message: "failed to connect to the docker API"), "failed to connect to the docker API"),
+        (.timedOut, "The command did not respond in time."),
+    ])
+    func containersReportAFailedConnectionToARemoteHost(failure: CommandError, details: String) async {
+        let runner = RecordingRunner { _ in throw failure }
+        let source = ContainerSource(runtimeID: "docker", name: "build", remoteHost: "build.example.com")
+
+        await #expect(throws: DockerError.cannotConnect(host: "build.example.com", details: details)) {
+            try await makeRuntime(runner: runner).containers(in: source)
+        }
+    }
+
+    @Test func containersKeepTheErrorOfARemoteEngine() async {
+        let failure = CommandError.failed(message: "Error response from daemon: client version is too old")
+        let runner = RecordingRunner { _ in throw failure }
+        let source = ContainerSource(runtimeID: "docker", name: "build", remoteHost: "build.example.com")
+
+        await #expect(throws: failure) {
+            try await makeRuntime(runner: runner).containers(in: source)
+        }
+    }
+
+    @Test func containersReportAStoppedLocalEngine() async {
+        let runner = RecordingRunner { _ in throw CommandError.failed(message: "Cannot connect to the Docker daemon") }
+        let source = ContainerSource(runtimeID: "docker", name: "vmpal")
+
+        await #expect(throws: DockerError.engineNotRunning) {
+            try await makeRuntime(runner: runner).containers(in: source)
+        }
+    }
+
     @Test func changesStopAProcessThatStaysAfterItsWindow() async {
         let locator = DockerCLILocator(searchDirectories: [URL(filePath: "/test/bin")], isExecutable: { _ in true })
         let runner = SilentRunner()

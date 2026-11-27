@@ -7,6 +7,9 @@
     "A line of output is too long to read." : {
       "comment" : "Error shown when the app stops reading the output of a docker command, such as a container log, because one line is too long."
     },
+    "Cannot connect to %@" : {
+      "comment" : "Error shown under a Docker context on another machine when the app cannot connect to it. The value is the host name."
+    },
     "Docker Compose was not found." : {
       "comment" : "Error shown when an action on a Compose project fails because neither the Compose plugin nor docker-compose is installed."
     },

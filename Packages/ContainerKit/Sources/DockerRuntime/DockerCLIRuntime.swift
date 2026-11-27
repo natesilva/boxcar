@@ -6,6 +6,14 @@ public enum DockerError: LocalizedError, Equatable {
     case unsupportedCLI
     case composeNotFound
     case engineNotRunning
+    case cannotConnect(host: String, details: String)
+
+    public var failureReason: String? {
+        switch self {
+        case .cannotConnect(_, let details): details
+        case .cliNotFound, .unsupportedCLI, .composeNotFound, .engineNotRunning: nil
+        }
+    }
 
     public var errorDescription: String? {
         switch self {
@@ -13,6 +21,7 @@ public enum DockerError: LocalizedError, Equatable {
         case .unsupportedCLI: String(localized: "A Docker CLI is required. The current command is not supported.", bundle: #bundle, comment: "Error shown when the docker command does not list its contexts in the Docker CLI's format, for example because it is Podman.")
         case .composeNotFound: String(localized: "Docker Compose was not found.", bundle: #bundle, comment: "Error shown when an action on a Compose project fails because neither the Compose plugin nor docker-compose is installed.")
         case .engineNotRunning: String(localized: "Not running", bundle: #bundle, comment: "Error shown under a Docker context whose engine does not accept connections, for example because its app was quit.")
+        case .cannotConnect(let host, _): String(localized: "Cannot connect to \(host)", bundle: #bundle, comment: "Error shown under a Docker context on another machine when the app cannot connect to it. The value is the host name.")
         }
     }
 
@@ -25,6 +34,19 @@ public enum DockerError: LocalizedError, Equatable {
         }
         let lowercased = message.lowercased()
         return unreachableMarkers.contains { lowercased.contains($0) }
+    }
+
+    /// The error for a failed connection to a remote host, or `nil` if the error has another
+    /// cause. A response of the engine shows that the connection works.
+    static func connectionFailure(_ error: any Error, host: String) -> DockerError? {
+        switch error {
+        case CommandError.failed(let message) where !message.hasPrefix("Error response from daemon"):
+            .cannotConnect(host: host, details: message)
+        case CommandError.timedOut:
+            .cannotConnect(host: host, details: error.localizedDescription)
+        default:
+            nil
+        }
     }
 }
 
@@ -81,8 +103,14 @@ public struct DockerCLIRuntime: ContainerRuntime {
                 ["--context", source.name, "ps", "--all", "--no-trunc", "--format", "json"],
                 timeout: Self.listTimeout
             )
-        } catch where DockerError.isEngineUnreachable(error) {
-            throw DockerError.engineNotRunning
+        } catch {
+            if let host = source.remoteHost, let failure = DockerError.connectionFailure(error, host: host) {
+                throw failure
+            }
+            if DockerError.isEngineUnreachable(error) {
+                throw DockerError.engineNotRunning
+            }
+            throw error
         }
         let containers = try DockerOutput.containers(from: output)
         let diagnostics = await diagnostics(of: containers.map(\.id), in: source)

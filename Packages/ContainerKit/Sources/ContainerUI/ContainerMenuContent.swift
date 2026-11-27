@@ -41,7 +41,12 @@ extension ContainerMenuContent {
     @ViewBuilder
     private func rows(for section: ContainerSection) -> some View {
         if let errorMessage = section.errorMessage {
-            Text(errorMessage)
+            if let errorDetail = section.errorDetail {
+                Text(errorMessage)
+                    .help(Text(verbatim: errorDetail))
+            } else {
+                Text(errorMessage)
+            }
         } else if section.containers.isEmpty {
             Text("No containers", bundle: #bundle, comment: "Shown under a Docker context that has no containers.")
         } else {

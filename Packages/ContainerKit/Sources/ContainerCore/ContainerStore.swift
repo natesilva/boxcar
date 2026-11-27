@@ -5,6 +5,8 @@ public struct ContainerSection: Identifiable, Equatable, Sendable {
     public let source: ContainerSource
     public let containers: [ContainerInfo]
     public let errorMessage: String?
+    /// More about the error, for example the full message that `errorMessage` summarizes.
+    public internal(set) var errorDetail: String? = nil
 
     public var id: ContainerSource.ID { source.id }
 
@@ -305,7 +307,17 @@ public final class ContainerStore {
             let containers = try await runtime.containers(in: source)
             return ContainerSection(source: source, containers: containers, errorMessage: nil)
         } catch {
-            return ContainerSection(source: source, containers: [], errorMessage: error.localizedDescription)
+            return errorSection(for: source, error)
         }
     }
+
+    private nonisolated static func errorSection(for source: ContainerSource, _ error: any Error) -> ContainerSection {
+        ContainerSection(
+            source: source,
+            containers: [],
+            errorMessage: error.localizedDescription,
+            errorDetail: (error as? any LocalizedError)?.failureReason
+        )
+    }
 }
+
