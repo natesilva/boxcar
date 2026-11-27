@@ -69,9 +69,10 @@ struct SettingsView: View {
         } else if source == .custom {
             Text("There is no executable file at this path.")
                 .foregroundStyle(.red)
-        } else {
-            Text("The docker command was not found.")
-                .foregroundStyle(.red)
+        } else if let helpURL = DockerError.cliNotFound.helpURL {
+            Link(destination: helpURL) {
+                Label("The docker command was not found.", systemImage: "info.circle")
+            }
         }
     }
 

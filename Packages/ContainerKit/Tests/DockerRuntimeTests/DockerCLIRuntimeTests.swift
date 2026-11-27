@@ -306,6 +306,12 @@ struct DockerCLIRuntimeTests {
         #expect(lines == ["2026-11-24T12:00:05.000000000Z new line"])
     }
 
+    @Test func onlyAMissingCLIHasInstallInstructions() {
+        #expect(DockerError.cliNotFound.helpURL?.path().hasSuffix("/docs/install-docker.md") == true)
+        #expect(DockerError.unsupportedCLI.helpURL == nil)
+        #expect(DockerError.engineNotRunning.helpURL == nil)
+    }
+
     @Test func missingCLIThrowsWithoutRunning() async {
         let runner = RecordingRunner(output: "")
 

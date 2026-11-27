@@ -7,6 +7,8 @@ public struct ContainerSection: Identifiable, Equatable, Sendable {
     public let errorMessage: String?
     /// More about the error, for example the full message that `errorMessage` summarizes.
     public internal(set) var errorDetail: String? = nil
+    /// A web page that helps to resolve the error.
+    public internal(set) var helpURL: URL? = nil
     /// Whether the section waits for its first result.
     public internal(set) var isLoading = false
 
@@ -302,7 +304,8 @@ public final class ContainerStore {
             source: source,
             containers: [],
             errorMessage: error.localizedDescription,
-            errorDetail: (error as? any LocalizedError)?.failureReason
+            errorDetail: (error as? any LocalizedError)?.failureReason,
+            helpURL: (error as? any HelpLinkedError)?.helpURL
         )
     }
 }

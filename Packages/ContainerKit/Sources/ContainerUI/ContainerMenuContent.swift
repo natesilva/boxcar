@@ -45,7 +45,13 @@ extension ContainerMenuContent {
     @ViewBuilder
     private func rows(for section: ContainerSection) -> some View {
         if let errorMessage = section.errorMessage {
-            if let errorDetail = section.errorDetail {
+            if let helpURL = section.helpURL {
+                Button(errorMessage, systemImage: "info.circle") {
+                    NSWorkspace.shared.open(helpURL)
+                }
+                .labelStyle(.titleAndIcon)
+                .help(Text("Open instructions in the browser", bundle: #bundle, comment: "Tooltip of an error in the menu that opens a web page with help."))
+            } else if let errorDetail = section.errorDetail {
                 Text(errorMessage)
                     .help(Text(verbatim: errorDetail))
             } else {

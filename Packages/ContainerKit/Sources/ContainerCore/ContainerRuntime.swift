@@ -1,3 +1,10 @@
+import Foundation
+
+/// An error that a web page helps the user to resolve.
+public protocol HelpLinkedError: Error {
+    var helpURL: URL? { get }
+}
+
 /// A container engine family, such as Docker or Apple Container.
 public protocol ContainerRuntime: Sendable {
     var id: String { get }

@@ -1,12 +1,17 @@
 import ContainerCore
 import Foundation
 
-public enum DockerError: LocalizedError, Equatable {
+public enum DockerError: LocalizedError, HelpLinkedError, Equatable {
     case cliNotFound
     case unsupportedCLI
     case composeNotFound
     case engineNotRunning
     case cannotConnect(host: String, details: String)
+
+    /// The page with instructions to install the docker CLI.
+    public var helpURL: URL? {
+        self == .cliNotFound ? URL(string: "https://github.com/natesilva/boxcar/blob/main/docs/install-docker.md") : nil
+    }
 
     public var failureReason: String? {
         switch self {

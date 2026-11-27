@@ -209,6 +209,14 @@ struct ContainerStoreTests {
         #expect(store.sections.map(\.errorDetail) == [nil, "Connection refused."])
     }
 
+    @Test func errorSectionCarriesTheHelpURL() async {
+        let store = ContainerStore(runtimes: [FailingRuntime(failingSource: nil)])
+
+        await store.refresh()
+
+        #expect(store.sections.map(\.helpURL) == [URL(string: "https://example.com/help")])
+    }
+
     @Test func failingRuntimeBecomesErrorSection() async {
         let store = ContainerStore(runtimes: [FailingRuntime(failingSource: nil)])
 
@@ -220,9 +228,10 @@ struct ContainerStoreTests {
     }
 }
 
-struct EngineError: LocalizedError {
+struct EngineError: LocalizedError, HelpLinkedError {
     var errorDescription: String? { "Engine not reachable." }
     var failureReason: String? { "Connection refused." }
+    var helpURL: URL? { URL(string: "https://example.com/help") }
 }
 
 /// Fails `sources()` when `failingSource` is nil. Otherwise it returns two

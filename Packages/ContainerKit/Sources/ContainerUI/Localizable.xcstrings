@@ -65,6 +65,9 @@
     "Open %@" : {
       "comment" : "Menu item that opens a published port of a container in the browser. The value is the address, such as localhost:5173."
     },
+    "Open instructions in the browser" : {
+      "comment" : "Tooltip of an error in the menu that opens a web page with help."
+    },
     "Reconnect" : {
       "comment" : "Button that restarts the log stream."
     },
