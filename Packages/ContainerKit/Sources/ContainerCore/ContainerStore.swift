@@ -80,6 +80,7 @@ public final class ContainerStore {
 
     private let runtimes: [any ContainerRuntime]
     private let retryDelay: Duration
+    private let maxRetryDelay: Duration
 
     @ObservationIgnored private var isWatching = false
     @ObservationIgnored private var watchers: [ContainerSource: Task<Void, Never>] = [:]
@@ -91,11 +92,14 @@ public final class ContainerStore {
     @ObservationIgnored private var sourceListLoad = 0
     @ObservationIgnored private var sectionLoads: [ContainerSource.ID: Int] = [:]
 
-    /// - Parameter retryDelay: The time to wait before the store watches a source
-    ///   again after its change stream ends, for example because the engine stopped.
-    public init(runtimes: [any ContainerRuntime], retryDelay: Duration = .seconds(10)) {
+    /// - Parameters:
+    ///   - retryDelay: The time to wait before the store watches a source again after
+    ///     its change stream ends, for example because the engine stopped.
+    ///   - maxRetryDelay: The delay doubles while the source stays unreachable, up to this time.
+    public init(runtimes: [any ContainerRuntime], retryDelay: Duration = .seconds(10), maxRetryDelay: Duration = .seconds(300)) {
         self.runtimes = runtimes
         self.retryDelay = retryDelay
+        self.maxRetryDelay = maxRetryDelay
     }
 
     /// Loads all sources and then keeps each source current from its change stream until `stop()`.
@@ -197,15 +201,24 @@ public final class ContainerStore {
             guard let runtime = runtime(for: source) else {
                 continue
             }
-            watchers[source] = Task { [weak self, retryDelay] in
+            watchers[source] = Task { [weak self, retryDelay, maxRetryDelay] in
+                var delay = retryDelay
+                var changes = await runtime.changes(in: source)
                 while !Task.isCancelled {
                     do {
-                        for try await _ in await runtime.changes(in: source) {
+                        for try await _ in changes {
                             self?.scheduleRefresh(source)
                         }
                     } catch {}
-                    try? await Task.sleep(for: retryDelay)
-                    self?.scheduleRefresh(source)
+                    try? await Task.sleep(for: delay)
+                    guard !Task.isCancelled else {
+                        return
+                    }
+                    // The new stream starts before the refresh, so no change is lost between them.
+                    changes = await runtime.changes(in: source)
+                    await self?.refreshSection(source)
+                    let isUnreachable = self?.sections.first { $0.source == source }?.errorMessage != nil
+                    delay = isUnreachable ? min(delay * 2, maxRetryDelay) : retryDelay
                 }
             }
         }

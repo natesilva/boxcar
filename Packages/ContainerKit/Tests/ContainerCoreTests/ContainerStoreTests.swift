@@ -143,6 +143,28 @@ struct ContainerStoreTests {
         #expect(store.sections.flatMap(\.containers).map(\.name) == ["after action"])
     }
 
+    @Test func retryDelayGrowsWhileSourceIsUnreachable() async throws {
+        let runtime = CountingRuntime(isReachable: false)
+        let store = ContainerStore(runtimes: [runtime], retryDelay: .milliseconds(10))
+
+        await store.start()
+        try await Task.sleep(for: .milliseconds(400))
+        store.stop()
+
+        #expect(runtime.watchCount <= 7)
+    }
+
+    @Test(arguments: [(true, Duration.seconds(60)), (false, .milliseconds(10))])
+    func retryDelayStaysShortForReachableSourceOrLowMaximum(isReachable: Bool, maxRetryDelay: Duration) async {
+        let runtime = CountingRuntime(isReachable: isReachable)
+        let store = ContainerStore(runtimes: [runtime], retryDelay: .milliseconds(10), maxRetryDelay: maxRetryDelay)
+
+        await store.start()
+
+        #expect(await eventually { runtime.watchCount >= 12 })
+        store.stop()
+    }
+
     @Test func failingRuntimeBecomesErrorSection() async {
         let store = ContainerStore(runtimes: [FailingRuntime(failingSource: nil)])
 
@@ -240,6 +262,12 @@ final class CountingRuntime: ContainerRuntime {
     let id = "counting"
     let displayName = "Counting"
     private let count = Mutex(0)
+    private let isReachable: Bool
+
+    init(isReachable: Bool = true) {
+        self.isReachable = isReachable
+    }
+
 
     var watchCount: Int { count.withLock { $0 } }
 
@@ -247,7 +275,10 @@ final class CountingRuntime: ContainerRuntime {
         [ContainerSource(runtimeID: id, name: "only")]
     }
 
-    func containers(in source: ContainerSource) async throws -> [ContainerInfo] { [] }
+    func containers(in source: ContainerSource) async throws -> [ContainerInfo] {
+        guard isReachable else { throw EngineError() }
+        return []
+    }
 
     func perform(_ action: ContainerAction, on ref: ContainerRef) async throws {}
 
