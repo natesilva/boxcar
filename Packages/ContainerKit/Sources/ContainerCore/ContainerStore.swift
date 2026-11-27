@@ -7,6 +7,8 @@ public struct ContainerSection: Identifiable, Equatable, Sendable {
     public let errorMessage: String?
     /// More about the error, for example the full message that `errorMessage` summarizes.
     public internal(set) var errorDetail: String? = nil
+    /// Whether the section waits for its first result.
+    public internal(set) var isLoading = false
 
     public var id: ContainerSource.ID { source.id }
 
@@ -134,23 +136,43 @@ public final class ContainerStore {
         return await runtime.logs(for: ref, after: lastLine)
     }
 
+    /// Lists the sources and then loads them in parallel. Each section shows its result
+    /// when it arrives, so a slow or unreachable source does not delay the others.
+    /// Until then, the section keeps its earlier result.
     public func refresh() async {
         let load = nextLoad()
-        var loadedSections: [ContainerSection] = []
-        var loadedSources: [ContainerSource] = []
+        var listedSections: [ContainerSection] = []
+        var listedSources: [ContainerSource] = []
         for runtime in runtimes {
-            let snapshot = await Self.load(runtime)
-            loadedSections += snapshot.sections
-            loadedSources += snapshot.sources
+            do {
+                let sources = try await runtime.sources()
+                listedSources += sources
+                listedSections += sources.map { ContainerSection(source: $0, containers: [], errorMessage: nil, isLoading: true) }
+            } catch {
+                let source = ContainerSource(runtimeID: runtime.id, name: runtime.displayName)
+                listedSections.append(Self.errorSection(for: source, error))
+            }
         }
         guard load > sourceListLoad else {
             return
         }
         sourceListLoad = load
-        sections = loadedSections.map { newest($0, from: load) }
+        let updatedSections = listedSections.map { listed in
+            listed.isLoading ? sections.first { $0.source == listed.source } ?? listed : listed
+        }
+        if sections != updatedSections {
+            sections = updatedSections
+        }
         hasLoaded = true
         if isWatching {
-            updateWatchers(for: loadedSources)
+            updateWatchers(for: listedSources)
+        }
+        await withTaskGroup(of: Void.self) { group in
+            for source in listedSources {
+                group.addTask {
+                    await self.refreshSection(source)
+                }
+            }
         }
     }
 
@@ -248,11 +270,11 @@ public final class ContainerStore {
             return
         }
         let load = nextLoad()
-        let loaded = await Self.section(for: source, in: runtime)
-        guard let index = sections.firstIndex(where: { $0.id == source.id }) else {
+        let section = await Self.section(for: source, in: runtime)
+        guard load > sectionLoads[source.id, default: 0], let index = sections.firstIndex(where: { $0.source == source }) else {
             return
         }
-        let section = newest(loaded, from: load)
+        sectionLoads[source.id] = load
         // Writing an element of `sections` always notifies observers, so an unchanged
         // section must not be written. A needless notification rebuilds the open menu
         // and closes its submenus.
@@ -264,42 +286,6 @@ public final class ContainerStore {
     private func nextLoad() -> Int {
         loadCount += 1
         return loadCount
-    }
-
-    /// Returns the shown section if a newer load supplied it, and otherwise the loaded section.
-    private func newest(_ loaded: ContainerSection, from load: Int) -> ContainerSection {
-        if load < sectionLoads[loaded.id, default: 0], let shown = sections.first(where: { $0.id == loaded.id }) {
-            return shown
-        }
-        sectionLoads[loaded.id] = load
-        return loaded
-    }
-
-    /// Loads all sources of one runtime in parallel, so that a slow or
-    /// unreachable source does not delay the others. A failure in one
-    /// source becomes an error section and does not affect other sources.
-    private nonisolated static func load(_ runtime: any ContainerRuntime) async -> (sources: [ContainerSource], sections: [ContainerSection]) {
-        let sources: [ContainerSource]
-        do {
-            sources = try await runtime.sources()
-        } catch {
-            let source = ContainerSource(runtimeID: runtime.id, name: runtime.displayName)
-            return ([], [ContainerSection(source: source, containers: [], errorMessage: error.localizedDescription)])
-        }
-
-        let sections = await withTaskGroup(of: (Int, ContainerSection).self) { group in
-            for (index, source) in sources.enumerated() {
-                group.addTask {
-                    (index, await section(for: source, in: runtime))
-                }
-            }
-            var results: [(Int, ContainerSection)] = []
-            for await result in group {
-                results.append(result)
-            }
-            return results.sorted { $0.0 < $1.0 }.map(\.1)
-        }
-        return (sources, sections)
     }
 
     private nonisolated static func section(for source: ContainerSource, in runtime: any ContainerRuntime) async -> ContainerSection {
@@ -320,4 +306,3 @@ public final class ContainerStore {
         )
     }
 }
-

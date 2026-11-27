@@ -143,6 +143,42 @@ struct ContainerStoreTests {
         #expect(store.sections.flatMap(\.containers).map(\.name) == ["after action"])
     }
 
+    @Test func refreshShowsEachSourceWhenItsResultArrives() async {
+        let runtime = ControlledRuntime(sourceNames: ["slow", "fast"])
+        let store = ContainerStore(runtimes: [runtime])
+        let refresh = Task { await store.refresh() }
+        #expect(await eventually { await runtime.pendingCount == 2 })
+        #expect(store.hasLoaded)
+        #expect(store.sections.map(\.source.name) == ["slow", "fast"])
+        #expect(store.sections.map(\.isLoading) == [true, true])
+
+        await runtime.answer(source: "fast", containerName: "web")
+
+        #expect(await eventually { store.sections.map(\.isLoading) == [true, false] })
+        #expect(store.sections[1].containers.map(\.name) == ["web"])
+        await runtime.answer(source: "slow", containerName: "db")
+        await refresh.value
+        #expect(store.sections.map(\.isLoading) == [false, false])
+    }
+
+    @Test func laterRefreshKeepsShownResultsUntilNewOnesArrive() async {
+        let runtime = ControlledRuntime()
+        let store = ContainerStore(runtimes: [runtime])
+        let first = Task { await store.refresh() }
+        #expect(await eventually { await runtime.pendingCount == 1 })
+        await runtime.answer(at: 0, containerName: "first")
+        await first.value
+
+        let second = Task { await store.refresh() }
+        #expect(await eventually { await runtime.pendingCount == 1 })
+
+        #expect(store.sections.flatMap(\.containers).map(\.name) == ["first"])
+        #expect(store.sections.map(\.isLoading) == [false])
+        await runtime.answer(at: 0, containerName: "second")
+        await second.value
+        #expect(store.sections.flatMap(\.containers).map(\.name) == ["second"])
+    }
+
     @Test func retryDelayGrowsWhileSourceIsUnreachable() async throws {
         let runtime = CountingRuntime(isReachable: false)
         let store = ContainerStore(runtimes: [runtime], retryDelay: .milliseconds(10))
@@ -219,28 +255,39 @@ struct FailingRuntime: ContainerRuntime {
     }
 }
 
-/// Has one source. Each `containers(in:)` call waits until the test answers it.
+/// Each `containers(in:)` call waits until the test answers it.
 actor ControlledRuntime: ContainerRuntime {
     nonisolated let id = "controlled"
     nonisolated let displayName = "Controlled"
-    private var pending: [CheckedContinuation<[ContainerInfo], Never>] = []
+    private nonisolated let sourceNames: [String]
+    private var pending: [(source: ContainerSource, continuation: CheckedContinuation<[ContainerInfo], Never>)] = []
+
+    init(sourceNames: [String] = ["only"]) {
+        self.sourceNames = sourceNames
+    }
 
     var pendingCount: Int { pending.count }
 
-    private nonisolated var source: ContainerSource {
-        ContainerSource(runtimeID: id, name: "only")
-    }
-
     func answer(at index: Int, containerName: String) {
-        let ref = ContainerRef(source: source, containerID: "1")
+        let call = pending.remove(at: index)
+        let ref = ContainerRef(source: call.source, containerID: "1")
         let container = ContainerInfo(ref: ref, name: containerName, image: "alpine", state: .running, status: "Up")
-        pending.remove(at: index).resume(returning: [container])
+        call.continuation.resume(returning: [container])
     }
 
-    func sources() async throws -> [ContainerSource] { [source] }
+    func answer(source name: String, containerName: String) {
+        guard let index = pending.firstIndex(where: { $0.source.name == name }) else {
+            return
+        }
+        answer(at: index, containerName: containerName)
+    }
+
+    func sources() async throws -> [ContainerSource] {
+        sourceNames.map { ContainerSource(runtimeID: id, name: $0) }
+    }
 
     func containers(in source: ContainerSource) async throws -> [ContainerInfo] {
-        await withCheckedContinuation { pending.append($0) }
+        await withCheckedContinuation { pending.append((source, $0)) }
     }
 
     func perform(_ action: ContainerAction, on ref: ContainerRef) async throws {}
@@ -276,7 +323,6 @@ final class CountingRuntime: ContainerRuntime {
     init(isReachable: Bool = true) {
         self.isReachable = isReachable
     }
-
 
     var watchCount: Int { count.withLock { $0 } }
 

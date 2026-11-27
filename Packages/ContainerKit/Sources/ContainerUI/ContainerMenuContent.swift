@@ -11,7 +11,7 @@ public struct ContainerMenuContent: View {
 
     public var body: some View {
         if !store.hasLoaded {
-            Text("Loading…", bundle: #bundle, comment: "Shown in the menu until the container list has loaded.")
+            loadingText
         } else if store.sections.isEmpty {
             Text("No container engine found", bundle: #bundle, comment: "Shown in the menu when there is no Docker context to list.")
         }
@@ -38,6 +38,10 @@ public struct ContainerMenuContent: View {
 }
 
 extension ContainerMenuContent {
+    private var loadingText: Text {
+        Text("Loading…", bundle: #bundle, comment: "Shown in the menu until the container list has loaded.")
+    }
+
     @ViewBuilder
     private func rows(for section: ContainerSection) -> some View {
         if let errorMessage = section.errorMessage {
@@ -47,6 +51,8 @@ extension ContainerMenuContent {
             } else {
                 Text(errorMessage)
             }
+        } else if section.isLoading {
+            loadingText
         } else if section.containers.isEmpty {
             Text("No containers", bundle: #bundle, comment: "Shown under a Docker context that has no containers.")
         } else {
