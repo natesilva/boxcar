@@ -36,6 +36,7 @@ public struct DockerCLIRuntime: ContainerRuntime {
     private let locator: DockerCLILocator
     private let runner: any CommandRunner
     private let now: @Sendable () -> Date
+    private let eventProcessTimeout: Duration
     /// Reports whether anything exists at a path. The default reads the attributes of a symlink
     /// itself, so a symlink with a missing target counts as existing.
     private let entryExists: @Sendable (String) -> Bool
@@ -50,11 +51,13 @@ public struct DockerCLIRuntime: ContainerRuntime {
         locator: DockerCLILocator = DockerCLILocator(),
         runner: any CommandRunner = SubprocessCommandRunner(),
         now: @escaping @Sendable () -> Date = { Date() },
+        eventProcessTimeout: Duration? = nil,
         entryExists: @escaping @Sendable (String) -> Bool = { (try? FileManager.default.attributesOfItem(atPath: $0)) != nil }
     ) {
         self.locator = locator
         self.runner = runner
         self.now = now
+        self.eventProcessTimeout = eventProcessTimeout ?? .seconds(Self.eventWindowSeconds + 30)
         self.entryExists = entryExists
     }
 
@@ -165,7 +168,7 @@ public struct DockerCLIRuntime: ContainerRuntime {
         let baseArguments = ["--context", source.name, "events", "--format", "{{.Action}}"]
             + filters.flatMap { ["--filter", $0] }
 
-        return AsyncThrowingStream { [runner, now] continuation in
+        return AsyncThrowingStream { [runner, now, eventProcessTimeout] continuation in
             let task = Task {
                 var since = Int(now().timeIntervalSince1970)
                 do {
@@ -178,8 +181,10 @@ public struct DockerCLIRuntime: ContainerRuntime {
                         let until = since + Self.eventWindowSeconds
                         let arguments = baseArguments + ["--since", String(since), "--until", String(until)]
                         let earliestNextStart = ContinuousClock.now + Self.minimumEventWindowInterval
-                        for try await _ in runner.lines(executable, arguments: arguments) {
-                            continuation.yield()
+                        try await Self.withTimeout(eventProcessTimeout) {
+                            for try await _ in runner.lines(executable, arguments: arguments) {
+                                continuation.yield()
+                            }
                         }
                         since = until
                         try await Task.sleep(until: earliestNextStart, clock: .continuous)
@@ -190,6 +195,21 @@ public struct DockerCLIRuntime: ContainerRuntime {
                 }
             }
             continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// A `docker events` process can stay after the end of its window, for example when the
+    /// engine does not respond or the network connection is lost. Cancellation stops the process.
+    /// The timeout does not count the time that the Mac sleeps.
+    private static func withTimeout(_ timeout: Duration, _ operation: @escaping @Sendable () async throws -> Void) async throws {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask(operation: operation)
+            group.addTask {
+                try await Task.sleep(for: timeout, clock: .suspending)
+                throw CommandError.timedOut
+            }
+            defer { group.cancelAll() }
+            try await group.next()
         }
     }
 

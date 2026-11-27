@@ -210,6 +210,18 @@ struct DockerCLIRuntimeTests {
         #expect(ContinuousClock.now - start >= .seconds(1))
     }
 
+    @Test func changesStopAProcessThatStaysAfterItsWindow() async {
+        let locator = DockerCLILocator(searchDirectories: [URL(filePath: "/test/bin")], isExecutable: { _ in true })
+        let runner = SilentRunner()
+        let runtime = DockerCLIRuntime(locator: locator, runner: runner, eventProcessTimeout: .milliseconds(50))
+        let source = ContainerSource(runtimeID: "docker", name: "colima")
+
+        await #expect(throws: CommandError.timedOut) {
+            for try await _ in await runtime.changes(in: source) {}
+        }
+        #expect(await eventually { runner.isStopped })
+    }
+
     @Test func logsReportTheCLIMessageInsteadOfYieldingIt() async {
         let logLine = "2026-11-24T12:00:00.000000000+01:00 started"
         let runner = RecordingRunner(output: "\(logLine)\nError response from daemon: gone", linesFailure: .failed(message: "status 1"))
@@ -324,4 +336,29 @@ final class RecordingRunner: CommandRunner {
             }
         }
     }
+}
+
+/// Its line stream yields nothing and does not finish, like a process that waits for a hung engine.
+final class SilentRunner: CommandRunner {
+    private let stopped = Mutex(false)
+
+    var isStopped: Bool { stopped.withLock { $0 } }
+
+    func run(_ executable: URL, arguments: [String], timeout: Duration) async throws -> String { "" }
+
+    func terminateRunningProcesses() {}
+
+    func lines(_ executable: URL, arguments: [String], includeStandardError: Bool) -> AsyncThrowingStream<String, any Error> {
+        AsyncThrowingStream { [self] continuation in
+            continuation.onTermination = { _ in self.stopped.withLock { $0 = true } }
+        }
+    }
+}
+
+private func eventually(_ condition: () -> Bool) async -> Bool {
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline && !condition() {
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+    return condition()
 }
