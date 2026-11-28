@@ -31,6 +31,7 @@ let package = Package(
             ]
         ),
         .testTarget(name: "ContainerCoreTests", dependencies: ["ContainerCore"]),
+        .testTarget(name: "ContainerUITests", dependencies: ["ContainerUI"]),
         .testTarget(name: "DockerRuntimeTests", dependencies: ["DockerRuntime"]),
     ]
 )

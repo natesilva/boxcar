@@ -5,9 +5,12 @@ import SwiftUI
 /// `Text` view, so a list of `Text` views cannot select more than one line.
 struct LogTextView: NSViewRepresentable {
     let lines: [LogLine]
+    /// Whether the view keeps the end of the log visible. The view sets the value to
+    /// `false` when the person scrolls away from the end or selects text.
+    @Binding var isTailing: Bool
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(isTailing: $isTailing)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -21,6 +24,7 @@ struct LogTextView: NSViewRepresentable {
         textView.drawsBackground = false
         textView.textContainerInset = NSSize(width: 16, height: 16)
         textView.textLayoutManager?.delegate = context.coordinator.layoutDelegate
+        context.coordinator.observe(textView, in: scrollView)
         return scrollView
     }
 
@@ -28,14 +32,15 @@ struct LogTextView: NSViewRepresentable {
         guard let textView = scrollView.documentView as? NSTextView else {
             return
         }
-        context.coordinator.show(lines, in: textView, scrollView: scrollView)
+        context.coordinator.isTailing = $isTailing
+        context.coordinator.show(lines, in: textView)
     }
 
     /// Keeps track of the lines that the text view shows, so that an update changes only
     /// the lines that were added or removed. Replacing all text of a log with 10,000 lines
     /// for each batch of new lines would make the window slow.
     @MainActor
-    final class Coordinator {
+    final class Coordinator: NSObject, NSTextViewDelegate {
         private static let attributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular),
             .foregroundColor: NSColor.labelColor,
@@ -54,6 +59,17 @@ struct LogTextView: NSViewRepresentable {
             ]
         }()
 
+        /// The keyboard commands that move toward the start of the log. The text view
+        /// animates some of them, so the scroll position does not show the result at once.
+        private static let backwardCommands: Set<Selector> = [
+            #selector(NSResponder.moveUp(_:)),
+            #selector(NSResponder.moveToBeginningOfParagraph(_:)),
+            #selector(NSResponder.moveToBeginningOfDocument(_:)),
+            #selector(NSResponder.pageUp(_:)),
+            #selector(NSResponder.scrollPageUp(_:)),
+            #selector(NSResponder.scrollToBeginningOfDocument(_:)),
+        ]
+
         /// The text layout manager keeps only a weak reference to its delegate.
         let layoutDelegate = NoticeLayoutDelegate()
 
@@ -62,13 +78,38 @@ struct LogTextView: NSViewRepresentable {
         /// The length in UTF-16 units of each line in the text view, including its line break.
         private var lengths: [Int] = []
 
-        func show(_ lines: [LogLine], in textView: NSTextView, scrollView: NSScrollView) {
+        var isTailing: Binding<Bool>
+        private weak var textView: NSTextView?
+        private var isEditing = false
+        private var isLiveScrolling = false
+
+        init(isTailing: Binding<Bool>) {
+            self.isTailing = isTailing
+        }
+
+        /// Only an action of the person stops the tailing. TextKit changes the height of
+        /// the text view and the scroll position without such an action, so the view
+        /// scrolls to the end again after each of these changes.
+        func observe(_ textView: NSTextView, in scrollView: NSScrollView) {
+            self.textView = textView
+            textView.delegate = self
+            let center = NotificationCenter.default
+            center.addObserver(self, selector: #selector(layoutDidChange), name: NSView.frameDidChangeNotification, object: textView)
+            center.addObserver(self, selector: #selector(layoutDidChange), name: NSView.frameDidChangeNotification, object: scrollView.contentView)
+            center.addObserver(self, selector: #selector(layoutDidChange), name: NSView.boundsDidChangeNotification, object: scrollView.contentView)
+            center.addObserver(self, selector: #selector(liveScrollWillStart), name: NSScrollView.willStartLiveScrollNotification, object: scrollView)
+            center.addObserver(self, selector: #selector(liveScrollDidMove), name: NSScrollView.didLiveScrollNotification, object: scrollView)
+            center.addObserver(self, selector: #selector(liveScrollDidEnd), name: NSScrollView.didEndLiveScrollNotification, object: scrollView)
+        }
+
+        func show(_ lines: [LogLine], in textView: NSTextView) {
             guard let storage = textView.textStorage else {
                 return
             }
-            let followsEnd = isAtEnd(of: scrollView)
 
-            storage.beginEditing()
+            // The text view removes the selection if one edit removes lines and adds lines,
+            // so these are separate edits.
+            isEditing = true
             if let first = lines.first, canReuse(for: lines, firstID: first.id) {
                 let removedCount = first.id - firstID
                 storage.deleteCharacters(in: NSRange(location: 0, length: lengths.prefix(removedCount).reduce(0, +)))
@@ -81,11 +122,9 @@ struct LogTextView: NSViewRepresentable {
                 firstID = lines.first?.id ?? 0
                 append(lines[...], to: storage)
             }
-            storage.endEditing()
+            isEditing = false
 
-            if followsEnd {
-                textView.scrollToEndOfDocument(nil)
-            }
+            scrollToEndLater()
         }
 
         /// The text view can keep its text if the lines continue the lines that it shows:
@@ -107,11 +146,50 @@ struct LogTextView: NSViewRepresentable {
             storage.append(text)
         }
 
-        private func isAtEnd(of scrollView: NSScrollView) -> Bool {
-            guard let documentView = scrollView.documentView else {
-                return true
+        func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if Self.backwardCommands.contains(commandSelector) {
+                isTailing.wrappedValue = false
             }
-            return scrollView.contentView.bounds.maxY >= documentView.bounds.maxY - 8
+            return false
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            if !isEditing, let textView, textView.selectedRange().length > 0 {
+                isTailing.wrappedValue = false
+            }
+        }
+
+        @objc private func layoutDidChange() {
+            scrollToEndLater()
+        }
+
+        @objc private func liveScrollWillStart() {
+            isLiveScrolling = true
+        }
+
+        @objc private func liveScrollDidMove() {
+            guard isTailing.wrappedValue, let textView, let clipView = textView.enclosingScrollView?.contentView else {
+                return
+            }
+            if clipView.bounds.maxY < textView.frame.maxY - 1 {
+                isTailing.wrappedValue = false
+            }
+        }
+
+        @objc private func liveScrollDidEnd() {
+            isLiveScrolling = false
+            scrollToEndLater()
+        }
+
+        /// The scroll waits for the next turn of the main queue, because a scroll during
+        /// a layout pass is not safe.
+        private func scrollToEndLater() {
+            DispatchQueue.main.async {
+                guard self.isTailing.wrappedValue, !self.isLiveScrolling, let textView = self.textView else {
+                    return
+                }
+                textView.scrollToVisible(NSRect(x: 0, y: textView.bounds.maxY - 1, width: 1, height: 1))
+            }
         }
     }
 }

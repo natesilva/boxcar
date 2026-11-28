@@ -47,16 +47,21 @@ struct ContainerLogView: View {
     @State private var connection = 0
     @State private var streamEnd: StreamEnd?
     @State private var lastRawLine: String?
+    @State private var isTailing = true
 
     /// The window keeps at most this many lines, so a noisy container
     /// cannot make the window use unlimited memory.
     private static let maxLines = 10_000
 
+    /// While the tailing is stopped, the window keeps up to this many lines, because
+    /// a removal of old lines can move the text that the person reads.
+    private static let maxLinesWhileStopped = 2 * maxLines
+
     private static let resumeDelay: Duration = .seconds(1)
 
     var body: some View {
         VStack(spacing: 0) {
-            LogTextView(lines: lines)
+            LogTextView(lines: lines, isTailing: $isTailing)
             if let streamEnd {
                 HStack {
                     switch streamEnd {
@@ -76,12 +81,17 @@ struct ContainerLogView: View {
         }
         .navigationTitle(Text("\(containerName) (\(ref.source.name))", bundle: #bundle, comment: "Log window title. The first value is the container name. The second value is the Docker context."))
         .toolbar {
+            Button(LocalizedStringResource("Follow", bundle: #bundle, comment: "Toolbar button that shows the end of the log again and keeps the newest lines visible."), systemImage: "arrow.down.to.line") {
+                isTailing = true
+            }
+            .disabled(isTailing)
             Button(LocalizedStringResource("Copy All", bundle: #bundle, comment: "Toolbar button that copies all log lines."), systemImage: "doc.on.doc") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(lines.map(\.text).joined(separator: "\n"), forType: .string)
             }
             Button(LocalizedStringResource("Clear", bundle: #bundle, comment: "Toolbar button that removes all log lines from the window."), systemImage: "trash") {
                 lines.removeAll()
+                isTailing = true
             }
         }
         .task(id: connection) {
@@ -151,8 +161,9 @@ struct ContainerLogView: View {
         }
         nextLineID += batch.count
         lastRawLine = batch.last
-        if lines.count > Self.maxLines {
-            lines.removeFirst(lines.count - Self.maxLines)
+        let limit = isTailing ? Self.maxLines : Self.maxLinesWhileStopped
+        if lines.count > limit {
+            lines.removeFirst(lines.count - limit)
         }
     }
 }

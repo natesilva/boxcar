@@ -38,6 +38,9 @@
     "Failed: %lld" : {
       "comment" : "Accessibility label of a Compose project's status. The value is the number of containers that are dead, in a restart loop, or out of memory."
     },
+    "Follow" : {
+      "comment" : "Toolbar button that shows the end of the log again and keeps the newest lines visible."
+    },
     "Loading…" : {
       "comment" : "Shown in the menu until the container list has loaded."
     },
